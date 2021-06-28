@@ -393,7 +393,7 @@ if __name__ == '__main__':
                              t_span=(t_0, t_end),
                              t_eval=teval,
                              y0=state_0,
-                             method='BDF',
+                             method='Radau',
                              args=(D_0, TG, RH, md_0, s_comp, lambda_v, True),
                              rtol=1e-10,
                              atol=params['mdSmall'])
@@ -450,8 +450,8 @@ if __name__ == '__main__':
         
         
         overwrite=True
-        if os.path.isfile(f'{fname}.p'):
-            with open(f'{fname}.p', 'rb') as pickle_in:
+        if os.path.isfile(f'{fname}.pickle'):
+            with open(f'{fname}.pickle', 'rb') as pickle_in:
                 old_obj = pickle.load(pickle_in)
                 print(f'File already exists...Date created {old_obj.sim_date}')
                 print(f'simulation time resolution: Old:-{old_obj.sim_time_resolution}, New:-{len(teval)}')
@@ -460,7 +460,7 @@ if __name__ == '__main__':
                 if 'n' in action.lower():
                     overwrite=False
         if overwrite:    
-            with open(f'{fname}.p', 'wb') as pickle_out:
+            with open(f'{fname}.pickle', 'wb') as pickle_out:
                 pickle.dump(obj, pickle_out)
 
 
