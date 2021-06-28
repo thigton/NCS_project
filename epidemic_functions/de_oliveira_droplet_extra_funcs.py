@@ -3,7 +3,7 @@ import numpy as np
 
 def simulation_parameters(ventilation_velocity=0.0):                    
     return {# Simulation Parameters
-            'mdSmall': 1e-20,
+            'mdSmall': 1e-14,
             'DSMALL': 1e-14,
             # Initial conditions
             'x_0': 1.5,                 # m ... initial droplet position

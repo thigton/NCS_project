@@ -2,6 +2,7 @@ from operator import index
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+
 import pandas as pd
 from scipy import integrate
 from scipy.integrate import solve_ivp
@@ -265,13 +266,16 @@ def state_dot_AS_2(t, state, D_0, TG, RH, md_0, s_comp, lambda_v, integrate):
             # BT iteration
             i = 0
             imax = 5
-            while (abs((BTnew-BT)/BTnew) > 1e-3) and (i <= imax):
-                BT = BTnew
-                FT = (1+BT)**0.7 / BT * np.log(1+BT)
-                NuStar = 2 + (Nu-2)/FT
-                Phi = (CpV/CpG) * (ShStar/NuStar) * (1/LeBar)
-                BTnew = (1 + BMeq)**Phi - 1.0
-                i = i+1
+            try:
+                while (abs((BTnew-BT)/BTnew) > 1e-3) and (i <= imax):
+                    BT = BTnew
+                    FT = (1+BT)**0.7 / BT * np.log(1+BT) # runtime warning
+                    NuStar = 2 + (Nu-2)/FT # runtime warning
+                    Phi = (CpV/CpG) * (ShStar/NuStar) * (1/LeBar)
+                    BTnew = (1 + BMeq)**Phi - 1.0
+                    i = i+1
+            except:
+                breakpoint()
             BT = BTnew
 
             # f2= -md_dot/(md*BT) * (3*PrG*taud/Nu)
@@ -305,7 +309,7 @@ def state_dot_AS_2(t, state, D_0, TG, RH, md_0, s_comp, lambda_v, integrate):
 
 class DataClass():
     def __init__(self, air_temp, RH, saliva, Lambda,
-                t_end, vent_u, particle_distribution, results):
+                t_end, vent_u, particle_distribution, state_0, results):
         self.air_temp = air_temp
         self.RH = RH
         self.saliva = saliva
@@ -313,6 +317,7 @@ class DataClass():
         self.simulation_length = t_end
         self.sim_time_resolution = results[0].shape[0]
         self.ventilation_velocity = vent_u
+        self.init_state = state_0
         self.initial_particle_distribution = particle_distribution
         self.sim_droplet_resolution = len(self.initial_particle_distribution)
         X_df, v_df, Td_df, md_df, yw_df, Nv_df, D_df = results
@@ -332,7 +337,7 @@ if __name__ == '__main__':
     # Input parameters
     # Ambient conditions
     air_temperature = 20+273.15        # K ...  ambient temperature
-    relative_humidity = [0, 0.2, 0.4, 0.6, 0.8, 1]             # (-) ... relative humidty
+    relative_humidity = [0]#,0.4, 0.6, 0.8, 1, 0.2]             # (-) ... relative humidty
 
     # Droplet Diameter
     # droplet_sizes=np.array([10])*1e-6           # m ... initial droplet diameter
@@ -396,7 +401,8 @@ if __name__ == '__main__':
                              method='BDF',
                              args=(D_0, TG, RH, md_0, s_comp, lambda_v, True),
                              rtol=1e-10,
-                             atol=params['mdSmall'])
+                             atol=params['mdSmall'],
+                             )
 
             # Save variables
             t = soln.t
@@ -438,6 +444,7 @@ if __name__ == '__main__':
         # SAVE ZE DAATA
         obj = DataClass(air_temp=TG,
                         RH=RH,
+                        state_0=state_0,
                         saliva=s_comp,
                         Lambda=lambda_v,
                         t_end=t_end,
@@ -447,20 +454,18 @@ if __name__ == '__main__':
         if not os.path.exists(f'{os.path.dirname(os.path.realpath(__file__))}/data_files/'):
             os.mkdir(f'{os.path.dirname(os.path.realpath(__file__))}/data_files/')
         fname = f'{os.path.dirname(os.path.realpath(__file__))}/data_files/RH_{RH}_u_{params["uG"]}_T_{TG-273.15}_comp_{comp}'.replace('.','-')
-        
-        
         overwrite=True
-        if os.path.isfile(f'{fname}.p'):
-            with open(f'{fname}.p', 'rb') as pickle_in:
+        if os.path.isfile(f'{fname}.pickle'):
+            with open(f'{fname}.pickle', 'rb') as pickle_in:
                 old_obj = pickle.load(pickle_in)
-                print(f'File already exists...Date created {old_obj.sim_date}')
-                print(f'simulation time resolution: Old:-{old_obj.sim_time_resolution}, New:-{len(teval)}')
-                print(f'simulation droplet resolution: Old:-{old_obj.sim_droplet_resolution}, New:-{len(droplet_sizes)}')
-                action = input('Do you want to overwrite? [Y/N]')
-                if 'n' in action.lower():
-                    overwrite=False
+            print(f'File already exists...Date created {old_obj.sim_date}')
+            print(f'simulation time resolution: Old:-{old_obj.sim_time_resolution}, New:-{len(teval)}')
+            print(f'simulation droplet resolution: Old:-{old_obj.sim_droplet_resolution}, New:-{len(droplet_sizes)}')
+            action = input('Do you want to overwrite? [Y/N]')
+            if 'n' in action.lower():
+                overwrite=False
         if overwrite:    
-            with open(f'{fname}.p', 'wb') as pickle_out:
+            with open(f'{fname}.pickle', 'wb') as pickle_out:
                 pickle.dump(obj, pickle_out)
 
 
