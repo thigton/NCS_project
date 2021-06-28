@@ -398,7 +398,7 @@ if __name__ == '__main__':
                              t_span=(t_0, t_end),
                              t_eval=teval,
                              y0=state_0,
-                             method='BDF',
+                             method='Radau',
                              args=(D_0, TG, RH, md_0, s_comp, lambda_v, True),
                              rtol=1e-10,
                              atol=params['mdSmall'],
