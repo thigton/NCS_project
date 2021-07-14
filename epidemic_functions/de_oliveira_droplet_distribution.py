@@ -50,7 +50,7 @@ def get_particle_distribution(params, source, dia_range=[1, 1000], modes=['1', '
             continue
         param_num = params.xs(key=action, axis=0, level=1).sort_index(
             axis=0, ascending=True)
-        d = np.logspace(np.log10(dia_range[0]), np.log10(dia_range[-1]), 200)
+        d = np.logspace(np.log10(dia_range[0]), np.log10(dia_range[-1]), 500)
 
         dC_dlogdk = eq2_12(
             param_num['Cn_i'], param_num['CMD'], d, param_num['GSD'], modes=modes)

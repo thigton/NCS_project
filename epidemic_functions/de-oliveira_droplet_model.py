@@ -13,7 +13,7 @@ from de_oliveira_droplet_distribution import (
     get_particle_distribution, get_particle_distribution_parameters)
 
 
-def saliva_evaporation(yw, md, Td, Tinf, RH, saliva, t):
+def saliva_evaporation(yw, md, Td, Tinf, RH, saliva, t, ventilation_velocity):
     # yw = mass fraction of water in the droplet (-)
     # md = mass of droplet kg
     # Td = droplet temperature [K]
@@ -24,7 +24,7 @@ def saliva_evaporation(yw, md, Td, Tinf, RH, saliva, t):
     # dk = droplet droplet diameter (m)
 
     # Properties
-    params = funcs.simulation_parameters()
+    params = funcs.simulation_parameters(ventilation_velocity=ventilation_velocity)
     # Saliva composition
     c_water = saliva[0]
     c_salt = saliva[1]
@@ -131,7 +131,7 @@ def saliva_evaporation(yw, md, Td, Tinf, RH, saliva, t):
     return [Sw, D]
 
 
-def state_dot_AS_2(t, state, D_0, TG, RH, md_0, s_comp, lambda_v, integrate):
+def state_dot_AS_2(t, state, D_0, TG, RH, md_0, s_comp, lambda_v, ventilation_velocity, integrate):
     """ ODEs for an evaporating droplet.
     Evap model: Using nomenclature from Miller, Harstad & Bellan (1998).
     Saliva model: Mikhailov et al. (2003)
@@ -152,7 +152,7 @@ def state_dot_AS_2(t, state, D_0, TG, RH, md_0, s_comp, lambda_v, integrate):
     Nv = state[5]  # viral load
 
     # parameters
-    params = funcs.simulation_parameters()
+    params = funcs.simulation_parameters(ventilation_velocity=ventilation_velocity)
     W_air = params['W_air']
     W_h2o = params['W_h20']
     RR = params['RR']
@@ -173,7 +173,7 @@ def state_dot_AS_2(t, state, D_0, TG, RH, md_0, s_comp, lambda_v, integrate):
 
         # Effect on evaporation
         # This func is to return equation 2.10 and the diameter
-        [Sw, D] = saliva_evaporation(yw, md, Td, TG, RH, s_comp, t)
+        [Sw, D] = saliva_evaporation(yw, md, Td, TG, RH, s_comp, t, ventilation_velocity)
         rhoL = md/((np.pi/6)*D**3)
         # Saturation pressure and surface concentration
         # Pure water
@@ -333,11 +333,13 @@ class DataClass():
         
         
 if __name__ == '__main__':
+    vent_u = 0.01
     plot = False
     # Input parameters
     # Ambient conditions
-    air_temperature = 20+273.15        # K ...  ambient temperature
-    relative_humidity = [0]#,0.4, 0.6, 0.8, 1, 0.2]             # (-) ... relative humidty
+    air_temperature = 20+273.15
+      # K ...  ambient temperature
+    relative_humidity = [0.6, 0.8, 1, 0.2,0, 0.4]             # (-) ... relative humidty
 
     # Droplet Diameter
     # droplet_sizes=np.array([10])*1e-6           # m ... initial droplet diameter
@@ -351,7 +353,7 @@ if __name__ == '__main__':
     n_v0 = (10**10)*10**6  # (copies/m^3 of liquid)
 
     # Load other parameters
-    params = funcs.simulation_parameters()
+    params = funcs.simulation_parameters(ventilation_velocity=vent_u)
     source_params = {'speaking': {'t': 30,
                                   'Q': 0.211},
                      'coughing': {'t': 0.5,
@@ -368,8 +370,8 @@ if __name__ == '__main__':
 
     # Simulation time
     t_0 = 0               # s ... initial time
-    t_end = 3600           # s ... end of simulation time
-    teval = np.insert(np.geomspace(1e-3, t_end, 499), 0, 0)
+    t_end = 5400           # s ... end of simulation time
+    teval = np.insert(np.geomspace(1e-3, t_end, 600), 0, 0)
     for RH in relative_humidity:
         X_df = pd.DataFrame(index=teval)
         v_df = pd.DataFrame(index=teval)
@@ -398,8 +400,8 @@ if __name__ == '__main__':
                              t_span=(t_0, t_end),
                              t_eval=teval,
                              y0=state_0,
-                             method='Radau',
-                             args=(D_0, TG, RH, md_0, s_comp, lambda_v, True),
+                             method='BDF',
+                             args=(D_0, TG, RH, md_0, s_comp, lambda_v, vent_u, True),
                              rtol=1e-10,
                              atol=params['mdSmall'],
                              )
@@ -450,7 +452,7 @@ if __name__ == '__main__':
                         t_end=t_end,
                         vent_u=params['uG'],
                         particle_distribution=pdf, 
-                        results=(X_df, v_df, Td_df, md_df, yw_df, Nv_df, D_t))
+                        results=(X_df, v_df, Td_df, md_df, yw_df, Nv_df, D_df))
         if not os.path.exists(f'{os.path.dirname(os.path.realpath(__file__))}/data_files/'):
             os.mkdir(f'{os.path.dirname(os.path.realpath(__file__))}/data_files/')
         fname = f'{os.path.dirname(os.path.realpath(__file__))}/data_files/RH_{RH}_u_{params["uG"]}_T_{TG-273.15}_comp_{comp}'.replace('.','-')

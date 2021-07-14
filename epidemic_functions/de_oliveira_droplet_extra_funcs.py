@@ -3,8 +3,8 @@ import numpy as np
 
 def simulation_parameters(ventilation_velocity=0.0):                    
     return {# Simulation Parameters
-            'mdSmall': 1e-14,
-            'DSMALL': 1e-14,
+            'mdSmall': 1e-12,
+            'DSMALL': 1e-10,
             # Initial conditions
             'x_0': 1.5,                 # m ... initial droplet position
             'v_0': 1e-6,                # m/s ... initial droplet velocity
@@ -249,7 +249,6 @@ def saliva_mass(D,Td,saliva,n_v):
     yw = m_w/(md)
 
     ## Emitted virus
-
     Nv = V_d*n_v
 
     return [md, rho_n, yw, Nv]

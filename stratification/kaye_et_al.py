@@ -43,10 +43,15 @@ def LLSS_h(soln, *data):
     return C**1.5 * (h**5/(1-h))**0.5 - eff_A
 
 if __name__ == '__main__':
+    fig_save_format = 'pdf-tex'
+    if fig_save_format == 'pdf-tex':
+        from savepdf_tex import savepdf_tex
+    dollar = '\$' if fig_save_format == 'pdf-tex' else '$'
+
     # vertical points
     z = np.linspace(0,1,200)
     # Parameters
-    R = 1000
+    R = 500
     eff_A = 2.12e-3 
     eps = 0.1
     # Init conditions
@@ -54,7 +59,7 @@ if __name__ == '__main__':
     m0 = 1e-6
     f0 = 1
     delta0 = 0
-    gamma0 = 1e-15
+    gamma0 = 1e-9
 
     qv0 = 0.2
     q_tol = 1e-7
@@ -66,7 +71,8 @@ if __name__ == '__main__':
         print(f' Iteration: {count}, qv0: {qv0:0.3f}')
         soln = root(fun=optimize_for_f_top, x0=gamma0, args=(z, y0, R, qv0))
         if not soln.success:
-            breakpoint()
+            # breakpoint()
+            exit()
         y0[-1] = soln.x[0]
         solver = solve_ivp(fun=lambda t, y: eq(t, y, R, qv0),
                             t_span=(z[0], z[-1]),
@@ -93,9 +99,10 @@ if __name__ == '__main__':
     g_llss = ((2*eps)**(4/3)* np.pi**(2/3) )/ (C*h_llss**(5/3))
     g_llss_profile = np.zeros(shape=z.shape)
     g_llss_profile[z > h_llss] = g_llss
+    q_llss =  (C*h_llss**(5/3)* np.pi**(1/3)) / ((2*eps)**(4/3))
     plt.style.use('seaborn-deep')
     fig, ax = plt.subplots(1,2, figsize=(12,6), sharey=True)
-    ax[0].set_title(f'qv: {qvnew:0.4f}')
+    plt.suptitle(r'{}q_v{}: {:0.4f}'.format(dollar, dollar, qvnew) + '\n' + r'{}q_{{v, LLSS}}{}: {:0.4f}'.format(dollar, dollar, q_llss))
     try:
         ax[0].plot(q,z, label='q')
         ax[0].plot(m,z, label='m')
@@ -103,11 +110,15 @@ if __name__ == '__main__':
         ax[0].legend()
     except ValueError:
         breakpoint()
-    ax[1].plot(delta,z, label=r'$\delta$')
-    ax[1].plot(g_llss_profile,z, label=r'$\delta_{LLSS}$')
+    ax[1].plot(delta,z, label=r'{}\delta{}'.format(dollar, dollar))
+    ax[1].plot(g_llss_profile,z, label=r'{}\delta_{{LLSS}}{}'.format(dollar, dollar))
     ax[1].legend()
     ax[0].set_xlabel('q, m, f')
-    ax[0].set_ylabel(r'$\zeta$')
-    ax[1].set_xlabel(r'$\delta$')
-    plt.show()
+    ax[0].set_ylabel(r'{}\zeta{}'.format(dollar, dollar))
+    ax[1].set_xlabel(r'{}\delta{}'.format(dollar, dollar))
+    if fig_save_format == 'pdf-tex':
+        fname = f'R-{R}-A-{eff_A}-localised'
+        savepdf_tex(fig, '/home/tdh17/Documents/BOX/NCS Project/models/stratification/', fname)
+    else:
+        plt.show()
     plt.close()
