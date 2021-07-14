@@ -130,7 +130,7 @@ def saliva_evaporation(yw, md, Td, Tinf, RH, saliva, t):
     return [Sw, D]
 
 
-def state_dot_AS_2(t, state, D_0, TG, RH, md_0, s_comp, lambda_v, integrate):
+def state_dot_AS_2(t, state, TG, RH, s_comp, lambda_v, integrate):
     """ ODEs for an evaporating droplet.
     Evap model: Using nomenclature from Miller, Harstad & Bellan (1998).
     Saliva model: Mikhailov et al. (2003)
@@ -394,7 +394,7 @@ if __name__ == '__main__':
                              t_eval=teval,
                              y0=state_0,
                              method='Radau',
-                             args=(D_0, TG, RH, md_0, s_comp, lambda_v, True),
+                             args=(TG, RH, s_comp, lambda_v, True),
                              rtol=1e-10,
                              atol=params['mdSmall'])
 
@@ -410,6 +410,7 @@ if __name__ == '__main__':
                 D_t = (((yw_df[droplet]*md_df[droplet]/funcs.rhoL_h2o(
                     Td_df[droplet]))*6/np.pi + ((1-yw_df[droplet])*md_df[droplet]/rho_n)*6/np.pi)**(1/3))
                 D_df[droplet] = pd.Series(D_t, index=t)
+                breakpoint()
             except:
                 breakpoint()
             # test = np.asarray([state_dot_AS_2(t[i], soln.y[:,i], D_0, TG, RH, md_0, s_comp, lambda_v, integrate=False) for i in range(len(t))])
@@ -443,7 +444,7 @@ if __name__ == '__main__':
                         t_end=t_end,
                         vent_u=params['uG'],
                         particle_distribution=pdf, 
-                        results=(X_df, v_df, Td_df, md_df, yw_df, Nv_df, D_t))
+                        results=(X_df, v_df, Td_df, md_df, yw_df, Nv_df, D_df))
         if not os.path.exists(f'{os.path.dirname(os.path.realpath(__file__))}/data_files/'):
             os.mkdir(f'{os.path.dirname(os.path.realpath(__file__))}/data_files/')
         fname = f'{os.path.dirname(os.path.realpath(__file__))}/data_files/RH_{RH}_u_{params["uG"]}_T_{TG-273.15}_comp_{comp}'.replace('.','-')

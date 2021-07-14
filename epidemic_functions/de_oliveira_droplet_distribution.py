@@ -23,6 +23,7 @@ def eq2_12(cn, CMD, d, GSD, modes, ODE=False):
         d (float or arr): droplet diameter [\mu m]
         GSD (arr): geometric standard deviation 
     """
+    
     cn = cn.loc[modes]
     CMD = CMD.loc[modes]
     GSD = GSD.loc[modes]
@@ -42,24 +43,30 @@ def eq2_12(cn, CMD, d, GSD, modes, ODE=False):
     return np.log(10) * sigma
 
 
-def get_particle_distribution(params, source, dia_range=[1, 1000], modes=['1', '2', '3'], plot=False):
+def get_particle_distribution(params, source, dia_range=[1, 1000], modes=['1', '2', '3'], plot=False, **kwargs):
     if plot:
         fig = plt.figure(figsize=(10, 4))
+    concentrations = {}
     for action in params.index.get_level_values(1).unique():
         if action == 'Na':
             continue
         param_num = params.xs(key=action, axis=0, level=1).sort_index(
             axis=0, ascending=True)
-        d = np.logspace(np.log10(dia_range[0]), np.log10(dia_range[-1]), 200)
+        
+        if 'dia_eval' in kwargs:
+            d = kwargs['dia_eval']
+        else:
+            d = np.logspace(np.log10(dia_range[0]), np.log10(dia_range[-1]), 200)
 
         dC_dlogdk = eq2_12(
             param_num['Cn_i'], param_num['CMD'], d, param_num['GSD'], modes=modes)
+        
         if plot:
             print(action, source[action]['t']*source[action]['Q'])
-            plt.plot(d*1e-6, dC_dlogdk*1e3 *
-                     source[action]['t']*source[action]['Q'], label=action)
+            plt.plot(d*1e-6, dC_dlogdk*1e6 , label=action)
+        concentrations[action] = dC_dlogdk*1e6
     if plot:
-        plt.xlabel('d [$\mu$ m]')
+        plt.xlabel('d [m]')
         plt.xlim([1e-7, 1e-3])
         plt.ylim([1e-4, 1e6])
         plt.ylabel('dC_dlogdk [$cm^{-3}$]')
@@ -68,7 +75,7 @@ def get_particle_distribution(params, source, dia_range=[1, 1000], modes=['1', '
         plt.legend()
         plt.show()
         plt.close()
-    return d*1e-6, dC_dlogdk*1e3
+    return d*1e-6, concentrations
 
 
 def particle_dist_ODE(d, y, *args):
