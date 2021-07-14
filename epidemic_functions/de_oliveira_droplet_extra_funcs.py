@@ -7,7 +7,7 @@ def simulation_parameters(ventilation_velocity=0.0):
             'DSMALL': 1e-10,
             # Initial conditions
             'x_0': 1.5,                 # m ... initial droplet position
-            'v_0': 1e-6,                # m/s ... initial droplet velocity
+            'v_0': -1e-7,                # m/s ... initial droplet velocity
             'Td_0': 273.15+33,          # K ... initial droplet temperature
             # Physical parameters
             'pG': 1.0*101325,           # Pa ... ambient pressure

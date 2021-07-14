@@ -131,7 +131,7 @@ def saliva_evaporation(yw, md, Td, Tinf, RH, saliva, t, ventilation_velocity):
     return [Sw, D]
 
 
-def state_dot_AS_2(t, state, D_0, TG, RH, md_0, s_comp, lambda_v, ventilation_velocity, integrate):
+def state_dot_AS_2(t, state, TG, RH, s_comp, lambda_v, integrate):
     """ ODEs for an evaporating droplet.
     Evap model: Using nomenclature from Miller, Harstad & Bellan (1998).
     Saliva model: Mikhailov et al. (2003)
@@ -370,9 +370,10 @@ if __name__ == '__main__':
 
     # Simulation time
     t_0 = 0               # s ... initial time
-    t_end = 5400           # s ... end of simulation time
-    teval = np.insert(np.geomspace(1e-3, t_end, 600), 0, 0)
+    t_end = 3600           # s ... end of simulation time
+    teval = np.arange(0, 3600, 0.5)
     for RH in relative_humidity:
+        print(f'Relative Humidity: {RH:0.0%}')
         X_df = pd.DataFrame(index=teval)
         v_df = pd.DataFrame(index=teval)
         Td_df = pd.DataFrame(index=teval)
@@ -401,7 +402,7 @@ if __name__ == '__main__':
                              t_eval=teval,
                              y0=state_0,
                              method='BDF',
-                             args=(D_0, TG, RH, md_0, s_comp, lambda_v, vent_u, True),
+                             args=(TG, RH, s_comp, lambda_v, True),
                              rtol=1e-10,
                              atol=params['mdSmall'],
                              )
