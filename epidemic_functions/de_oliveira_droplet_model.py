@@ -364,8 +364,9 @@ if __name__ == '__main__':
     # Simulation time
     t_0 = 0               # s ... initial time
     t_end = 3600           # s ... end of simulation time
-    teval = np.insert(np.geomspace(1e-3, t_end, 499), 0, 0)
+    teval = np.arange(0, 3600, 0.5)
     for RH in relative_humidity:
+        print(f'Relative Humidity: {RH:0.0%}')
         X_df = pd.DataFrame(index=teval)
         v_df = pd.DataFrame(index=teval)
         Td_df = pd.DataFrame(index=teval)
@@ -393,7 +394,7 @@ if __name__ == '__main__':
                              t_span=(t_0, t_end),
                              t_eval=teval,
                              y0=state_0,
-                             method='Radau',
+                             method='BDF',
                              args=(TG, RH, s_comp, lambda_v, True),
                              rtol=1e-10,
                              atol=params['mdSmall'])
@@ -410,7 +411,6 @@ if __name__ == '__main__':
                 D_t = (((yw_df[droplet]*md_df[droplet]/funcs.rhoL_h2o(
                     Td_df[droplet]))*6/np.pi + ((1-yw_df[droplet])*md_df[droplet]/rho_n)*6/np.pi)**(1/3))
                 D_df[droplet] = pd.Series(D_t, index=t)
-                breakpoint()
             except:
                 breakpoint()
             # test = np.asarray([state_dot_AS_2(t[i], soln.y[:,i], D_0, TG, RH, md_0, s_comp, lambda_v, integrate=False) for i in range(len(t))])

@@ -56,7 +56,7 @@ def get_particle_distribution(params, source, dia_range=[1, 1000], modes=['1', '
         if 'dia_eval' in kwargs:
             d = kwargs['dia_eval']
         else:
-            d = np.logspace(np.log10(dia_range[0]), np.log10(dia_range[-1]), 200)
+            d = np.logspace(np.log10(dia_range[0]), np.log10(dia_range[-1]), 400)
 
         dC_dlogdk = eq2_12(
             param_num['Cn_i'], param_num['CMD'], d, param_num['GSD'], modes=modes)
