@@ -333,7 +333,7 @@ class DataClass():
         
         
 if __name__ == '__main__':
-    vent_u_arr = [-0.01, -0.005, 0.005, 0.01]
+    vent_u_arr = [-0.01, -0.005,0, 0.005, 0.01]
     plot = False
     # Input parameters
     # Ambient conditions
