@@ -39,35 +39,43 @@ if __name__ == '__main__':
         t_end = teval[-1]           # s ... end of simulation time
         delta_t = teval[1]-teval[0]
         delta_volume = source_params[action]['Q']*1e-3 * delta_t # volume of speech in time step
-        delta_numbers = pd.DataFrame(np.vstack([particle_numbers[action]*delta_volume]*len(teval)), index=teval, columns=diameters) # the number of droplets per diameter each time step
-        delta_numbers.loc[delta_numbers.index > 30] = 0
-        X_df = pd.DataFrame(index=teval, columns=diameters)
-        Nv_df = pd.DataFrame(index=teval, columns=diameters)
-        dia_df = pd.DataFrame(index=teval, columns=diameters)
+        t_stop = 30
+        emit_schedule = teval < t_stop
+        
+        delta_numbers = pd.DataFrame(index=data.droplet_displacement.columns)
+        # X_df = pd.DataFrame(index=teval, columns=diameters)
+        # Nv_df = pd.DataFrame(index=teval, columns=diameters)
+        # dia_df = pd.DataFrame(index=teval, columns=diameters)
         # D_df = pd.DataFrame(np.vstack([droplet_sizes]*len(teval)), index=teval, columns=droplet_sizes)
         PFUs = []
-        for t in teval:
+        for i, t in enumerate(teval):
+            delta_numbers.columns = delta_numbers.columns + delta_t
+            if emit_schedule[i]:
+                delta_numbers[0] = particle_numbers[action]*delta_volume
             print(f't:{t:0.1f}secs', end='\r')
-            # when t is equal to 4 and the initial release was 2 
-            # you want to grab the 2 front the data
-            for df, attr in zip([X_df, Nv_df, dia_df],
-                                ['droplet_displacement','droplet_viral_load', 'droplet_diameter']):
-                tmp = getattr(data, attr).set_index(keys=t-getattr(data, attr).index)
-                tmp = tmp.loc[tmp.index >=0]
-                df.loc[tmp.index] = tmp
-            if t>1800:
-                break
+            X_df = data.droplet_displacement.loc[teval <= t, :]
+            Nv_df = data.droplet_viral_load.loc[teval <= t, :]
+            dia_df = data.droplet_diameter.loc[teval <= t, :]
+            # for df, attr in zip([X_df, Nv_df, dia_df],
+            #                     ['droplet_displacement','droplet_viral_load', 'droplet_diameter']):
+            #     tmp = getattr(data, attr).set_index(keys=t-getattr(data, attr).index)
+            #     tmp = tmp.loc[tmp.index >=0]
+            #     df.loc[tmp.index] = tmp
+
+
             Nv_in_breathing_zone = Nv_df.mask((X_df < 1.2) | (X_df > 1.8))
-            PFUs.append(Nv_in_breathing_zone.mul(delta_numbers, axis=1).sum().sum())
+            Nv_in_breathing_zone = Nv_in_breathing_zone.loc[Nv_in_breathing_zone.index > t-t_stop]
+            PFUs.append(Nv_in_breathing_zone.mul(delta_numbers.T).sum().sum())
+            
         plt.plot(teval[:len(PFUs)], PFUs, label=f, color=f'C{colour_counter}')
-    plt.axhspan(ymin=NV_ID10_range[0], ymax=NV_ID10_range[1], color='r',alpha=0.5)
-    plt.axhspan(ymin=NV_ID50_range[0], ymax=NV_ID50_range[1], color='r',alpha=0.5)
-    plt.xscale('log')
-    plt.xlabel('time (secs)')
-    plt.yscale('log')
-    plt.ylabel('viral load between 1.2 and 1.8 m (PFUs)')
-    plt.legend()
-    plt.show()
-    plt.close()
+        plt.axhspan(ymin=NV_ID10_range[0], ymax=NV_ID10_range[1], color='r',alpha=0.5)
+        plt.axhspan(ymin=NV_ID50_range[0], ymax=NV_ID50_range[1], color='r',alpha=0.5)
+        plt.xscale('log')
+        plt.xlabel('time (secs)')
+        plt.yscale('log')
+        plt.ylabel('viral load between 1.2 and 1.8 m (PFUs)')
+        plt.legend()
+        plt.show()
+        plt.close()
 
  
