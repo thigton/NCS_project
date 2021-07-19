@@ -9,10 +9,12 @@ from de_oliveira_droplet_distribution import (
 
 
 if __name__ == '__main__':
+    NV_ID10_range = (20, 83)
+    NV_ID50_range = (130, 530)
     action = 'speaking'
-
     fnames = os.listdir('/Users/Tom/Box/NCS Project/models/epidemic_functions/data_files')
     colour_counter = -1
+    fig = plt.figure(figsize=(15,15))
     for f in fnames:
         with open(f'/Users/Tom/Box/NCS Project/models/epidemic_functions/data_files/{f}', 'rb') as pickle_in:
             data = pickle.load(pickle_in)
@@ -40,29 +42,32 @@ if __name__ == '__main__':
         delta_numbers = pd.DataFrame(np.vstack([particle_numbers[action]*delta_volume]*len(teval)), index=teval, columns=diameters) # the number of droplets per diameter each time step
         delta_numbers.loc[delta_numbers.index > 30] = 0
         X_df = pd.DataFrame(index=teval, columns=diameters)
-        v_df = pd.DataFrame(index=teval, columns=diameters)
-        Td_df = pd.DataFrame(index=teval, columns=diameters)
-        md_df = pd.DataFrame(index=teval, columns=diameters)
-        yw_df = pd.DataFrame(index=teval, columns=diameters)
         Nv_df = pd.DataFrame(index=teval, columns=diameters)
+        dia_df = pd.DataFrame(index=teval, columns=diameters)
         # D_df = pd.DataFrame(np.vstack([droplet_sizes]*len(teval)), index=teval, columns=droplet_sizes)
         PFUs = []
         for t in teval:
             print(f't:{t:0.1f}secs', end='\r')
             # when t is equal to 4 and the initial release was 2 
             # you want to grab the 2 front the data
-            for df, attr in zip([X_df, v_df, Td_df, md_df, yw_df, Nv_df],
-                                ['droplet_displacement', 'droplet_velocity',
-                                 'droplet_temp', 'droplet_mass','droplet_mass_fraction',
-                                'droplet_viral_load']):
+            for df, attr in zip([X_df, Nv_df, dia_df],
+                                ['droplet_displacement','droplet_viral_load', 'droplet_diameter']):
                 tmp = getattr(data, attr).set_index(keys=t-getattr(data, attr).index)
                 tmp = tmp.loc[tmp.index >=0]
                 df.loc[tmp.index] = tmp
-            PFUs.append(Nv_df.mul(delta_numbers, axis=1).sum().sum())
-        plt.plot(teval[:len(PFUs)], PFUs, label=f)
-        plt.xscale('log')
-        plt.yscale('log')
-        plt.show()
-        plt.close()
+            if t>1800:
+                break
+            Nv_in_breathing_zone = Nv_df.mask((X_df < 1.2) | (X_df > 1.8))
+            PFUs.append(Nv_in_breathing_zone.mul(delta_numbers, axis=1).sum().sum())
+        plt.plot(teval[:len(PFUs)], PFUs, label=f, color=f'C{colour_counter}')
+    plt.axhspan(ymin=NV_ID10_range[0], ymax=NV_ID10_range[1], color='r',alpha=0.5)
+    plt.axhspan(ymin=NV_ID50_range[0], ymax=NV_ID50_range[1], color='r',alpha=0.5)
+    plt.xscale('log')
+    plt.xlabel('time (secs)')
+    plt.yscale('log')
+    plt.ylabel('viral load between 1.2 and 1.8 m (PFUs)')
+    plt.legend()
+    plt.show()
+    plt.close()
 
  
