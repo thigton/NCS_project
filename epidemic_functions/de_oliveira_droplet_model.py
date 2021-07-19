@@ -131,7 +131,7 @@ def saliva_evaporation(yw, md, Td, Tinf, RH, saliva, t, ventilation_velocity):
     return [Sw, D]
 
 
-def state_dot_AS_2(t, state, TG, RH, s_comp, lambda_v, integrate):
+def state_dot_AS_2(t, state, TG, RH, s_comp, lambda_v, integrate, ventilation_velocity,):
     """ ODEs for an evaporating droplet.
     Evap model: Using nomenclature from Miller, Harstad & Bellan (1998).
     Saliva model: Mikhailov et al. (2003)
@@ -274,8 +274,8 @@ def state_dot_AS_2(t, state, TG, RH, s_comp, lambda_v, integrate):
                     Phi = (CpV/CpG) * (ShStar/NuStar) * (1/LeBar)
                     BTnew = (1 + BMeq)**Phi - 1.0
                     i = i+1
-            except:
-                breakpoint()
+            except ValueError as e:
+                print(e)
             BT = BTnew
 
             # f2= -md_dot/(md*BT) * (3*PrG*taud/Nu)
@@ -333,12 +333,13 @@ class DataClass():
         
         
 if __name__ == '__main__':
-    vent_u = 0.01
+    vent_u_arr = [-0.01, -0.005, 0.005, 0.01]
     plot = False
     # Input parameters
     # Ambient conditions
     air_temperature = 20+273.15
       # K ...  ambient temperature
+    # relative_humidity = [0.4]             # (-) ... relative humidty
     relative_humidity = [0.6, 0.8, 1, 0.2,0, 0.4]             # (-) ... relative humidty
 
     # Droplet Diameter
@@ -351,125 +352,134 @@ if __name__ == '__main__':
     # SARS-CoV-1 Exponentional decay constant
     lambda_i = 0.636/3600  # (s^-1)
     n_v0 = (10**10)*10**6  # (copies/m^3 of liquid)
-
-    # Load other parameters
-    params = funcs.simulation_parameters(ventilation_velocity=vent_u)
-    source_params = {'speaking': {'t': 30,
-                                  'Q': 0.211},
-                     'coughing': {'t': 0.5,
-                                  'Q': 1.25}}  # in litres and seconds
-    particle_distribution_params = get_particle_distribution_parameters()
-    # droplet sizes [m] pdf in litre^-3 m^[-1]
-    droplet_sizes, pdf = get_particle_distribution(params=particle_distribution_params,
-                                                   modes=['1', '2', '3'],
-                                                   source=source_params)
-    Td_0 = params['Td_0']
-    mdSMALL = params['mdSmall']
-    x_0 = params['x_0']
-    v_0 = params['v_0']
-
-    # Simulation time
-    t_0 = 0               # s ... initial time
-    t_end = 3600           # s ... end of simulation time
-    teval = np.arange(0, 3600, 0.5)
-    for RH in relative_humidity:
-        print(f'Relative Humidity: {RH:0.0%}')
-        X_df = pd.DataFrame(index=teval)
-        v_df = pd.DataFrame(index=teval)
-        Td_df = pd.DataFrame(index=teval)
-        md_df = pd.DataFrame(index=teval)
-        yw_df = pd.DataFrame(index=teval)
-        Nv_df = pd.DataFrame(index=teval)
-        D_df = pd.DataFrame(index=teval)
-        for droplet in droplet_sizes:
-            print(f'droplet size: {droplet*1e6:0.3f} micrometres')
-            # Solve
-            # Set parameters
-            lambda_v = lambda_i
-            s_comp = saliva
-            D_0 = droplet
-            TG = air_temperature
-            # RH = relative_humidity
-
-            # Initial droplet mass from composition
-            [md_0, rho_n, yw_0, Nv_0] = funcs.saliva_mass(D_0, Td_0, saliva, n_v0)
-
-            # Integration
-            state_0 = [x_0, v_0, Td_0, md_0, yw_0, Nv_0]  # initial state
-            # Integration
-            soln = solve_ivp(fun=state_dot_AS_2,
-                             t_span=(t_0, t_end),
-                             t_eval=teval,
-                             y0=state_0,
-                             method='BDF',
-                             args=(TG, RH, s_comp, lambda_v, True),
-                             rtol=1e-10,
-                             atol=params['mdSmall'],
-                             )
-
-            # Save variables
-            t = soln.t
-            try:
-                X_df[droplet] = pd.Series(soln.y[0, :], index=t)
-                v_df[droplet] = pd.Series(soln.y[1, :], index=t)
-                Td_df[droplet] = pd.Series(soln.y[2, :], index=t)
-                md_df[droplet] = pd.Series(soln.y[3, :], index=t)
-                yw_df[droplet] = pd.Series(soln.y[4, :], index=t)
-                Nv_df[droplet] = pd.Series(soln.y[5, :], index=t)
-                D_t = (((yw_df[droplet]*md_df[droplet]/funcs.rhoL_h2o(
-                    Td_df[droplet]))*6/np.pi + ((1-yw_df[droplet])*md_df[droplet]/rho_n)*6/np.pi)**(1/3))
-                D_df[droplet] = pd.Series(D_t, index=t)
-            except:
-                breakpoint()
-            # test = np.asarray([state_dot_AS_2(t[i], soln.y[:,i], D_0, TG, RH, md_0, s_comp, lambda_v, integrate=False) for i in range(len(t))])
-
-            if plot:
-                # Plots
-                fig, ax = plt.subplots(1, 3, figsize=(15, 5))
-
-                ax[0].plot(t, D_t*1e6, 'k-')
-                ax[0].set_xlabel('t (s)')
-                ax[0].set_ylabel('d (\mum)')
-                ax[0].set_xscale('log')
-                ax[0].set_xlim([1e-2, 1e3])
-
-                ax[1].plot(t, soln.y[0, :], 'k-')
-                ax[1].set_xlabel('t (s)')
-                ax[1].set_ylabel('X (m)')
-
-                ax[2].plot(t, soln.y[5, :], 'k-')
-                ax[2].set_xlabel('t (s)')
-                ax[2].set_ylabel('Nv(PFU)')
-
-                plt.show()
-                plt.close()
-
-        # SAVE ZE DAATA
-        obj = DataClass(air_temp=TG,
-                        RH=RH,
-                        state_0=state_0,
-                        saliva=s_comp,
-                        Lambda=lambda_v,
-                        t_end=t_end,
-                        vent_u=params['uG'],
-                        particle_distribution=pdf, 
-                        results=(X_df, v_df, Td_df, md_df, yw_df, Nv_df, D_df))
-        if not os.path.exists(f'{os.path.dirname(os.path.realpath(__file__))}/data_files/'):
-            os.mkdir(f'{os.path.dirname(os.path.realpath(__file__))}/data_files/')
-        fname = f'{os.path.dirname(os.path.realpath(__file__))}/data_files/RH_{RH}_u_{params["uG"]}_T_{TG-273.15}_comp_{comp}'.replace('.','-')
-        overwrite=True
-        if os.path.isfile(f'{fname}.pickle'):
-            with open(f'{fname}.pickle', 'rb') as pickle_in:
-                old_obj = pickle.load(pickle_in)
-            print(f'File already exists...Date created {old_obj.sim_date}')
-            print(f'simulation time resolution: Old:-{old_obj.sim_time_resolution}, New:-{len(teval)}')
-            print(f'simulation droplet resolution: Old:-{old_obj.sim_droplet_resolution}, New:-{len(droplet_sizes)}')
-            action = input('Do you want to overwrite? [Y/N]')
-            if 'n' in action.lower():
-                overwrite=False
-        if overwrite:    
-            with open(f'{fname}.pickle', 'wb') as pickle_out:
-                pickle.dump(obj, pickle_out)
+    for vent_u in vent_u_arr:
+        # Load other parameters
+        params = funcs.simulation_parameters(ventilation_velocity=vent_u)
+        source_params = {'speaking': {'t': 30,
+                                      'Q': 0.211},
+                         'coughing': {'t': 0.5,
+                                      'Q': 1.25}}  # in litres and seconds
+        particle_distribution_params = get_particle_distribution_parameters()
+        # droplet sizes [m] pdf in litre^-3 m^[-1]
+        droplet_sizes, pdf = get_particle_distribution(params=particle_distribution_params,
+                                                       modes=['1', '2', '3'],
+                                                       source=source_params)
+        Td_0 = params['Td_0']
+        mdSMALL = params['mdSmall']
+        x_0 = params['x_0']
+        v_0 = params['v_0']
+    
+        # Simulation time
+        t_0 = 0               # s ... initial time
+        t_end = 3600           # s ... end of simulation time
+        teval = np.arange(0, 3600, 0.5)
+        for RH in relative_humidity:
+            print(f'Relative Humidity: {RH:0.0%}, vent velocity: {vent_u}')
+            X_df = pd.DataFrame(index=teval)
+            v_df = pd.DataFrame(index=teval)
+            Td_df = pd.DataFrame(index=teval)
+            md_df = pd.DataFrame(index=teval)
+            yw_df = pd.DataFrame(index=teval)
+            Nv_df = pd.DataFrame(index=teval)
+            D_df = pd.DataFrame(index=teval)
+            for droplet in droplet_sizes:
+                print(f'droplet size: {droplet*1e6:0.3f} micrometres')
+                # Solve
+                # Set parameters
+                lambda_v = lambda_i
+                s_comp = saliva
+                D_0 = droplet
+                TG = air_temperature
+                # RH = relative_humidity
+    
+                # Initial droplet mass from composition
+                [md_0, rho_n, yw_0, Nv_0] = funcs.saliva_mass(D_0, Td_0, saliva, n_v0)
+    
+                # Integration
+                state_0 = [x_0, v_0, Td_0, md_0, yw_0, Nv_0]  # initial state
+                # Integration
+                atol = params['mdSmall']
+                while True:
+                    try:
+                        soln = solve_ivp(fun=state_dot_AS_2,
+                                     t_span=(t_0, t_end),
+                                     t_eval=teval,
+                                     y0=state_0,
+                                     method='BDF',
+                                     args=(TG, RH, s_comp, lambda_v, True, vent_u),
+                                     rtol=1e-10,
+                                     atol=atol,
+                                     )
+                    except ValueError:
+                        atol *= 2
+                    if soln.success:
+                        break
+                    else:
+                        atol *= 2
+    
+                # Save variables
+                t = soln.t
+                try:
+                    X_df[droplet] = pd.Series(soln.y[0, :], index=t)
+                    v_df[droplet] = pd.Series(soln.y[1, :], index=t)
+                    Td_df[droplet] = pd.Series(soln.y[2, :], index=t)
+                    md_df[droplet] = pd.Series(soln.y[3, :], index=t)
+                    yw_df[droplet] = pd.Series(soln.y[4, :], index=t)
+                    Nv_df[droplet] = pd.Series(soln.y[5, :], index=t)
+                    D_t = (((yw_df[droplet]*md_df[droplet]/funcs.rhoL_h2o(
+                        Td_df[droplet]))*6/np.pi + ((1-yw_df[droplet])*md_df[droplet]/rho_n)*6/np.pi)**(1/3))
+                    D_df[droplet] = pd.Series(D_t, index=t)
+                except:
+                    breakpoint()
+                # test = np.asarray([state_dot_AS_2(t[i], soln.y[:,i], D_0, TG, RH, md_0, s_comp, lambda_v, integrate=False) for i in range(len(t))])
+    
+                if plot:
+                    # Plots
+                    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+    
+                    ax[0].plot(t, D_t*1e6, 'k-')
+                    ax[0].set_xlabel('t (s)')
+                    ax[0].set_ylabel('d (\mum)')
+                    ax[0].set_xscale('log')
+                    ax[0].set_xlim([1e-2, 1e3])
+    
+                    ax[1].plot(t, soln.y[0, :], 'k-')
+                    ax[1].set_xlabel('t (s)')
+                    ax[1].set_ylabel('X (m)')
+    
+                    ax[2].plot(t, soln.y[5, :], 'k-')
+                    ax[2].set_xlabel('t (s)')
+                    ax[2].set_ylabel('Nv(PFU)')
+    
+                    plt.show()
+                    plt.close()
+    
+            # SAVE ZE DAATA
+            obj = DataClass(air_temp=TG,
+                            RH=RH,
+                            state_0=state_0,
+                            saliva=s_comp,
+                            Lambda=lambda_v,
+                            t_end=t_end,
+                            vent_u=params['uG'],
+                            particle_distribution=pdf, 
+                            results=(X_df, v_df, Td_df, md_df, yw_df, Nv_df, D_df))
+            if not os.path.exists(f'{os.path.dirname(os.path.realpath(__file__))}/data_files/'):
+                os.mkdir(f'{os.path.dirname(os.path.realpath(__file__))}/data_files/')
+            fname = f'{os.path.dirname(os.path.realpath(__file__))}/data_files/RH_{RH}_u_{params["uG"]}_T_{TG-273.15}_comp_{comp}'.replace('.','-')
+            overwrite=True
+            if os.path.isfile(f'{fname}.pickle'):
+                with open(f'{fname}.pickle', 'rb') as pickle_in:
+                    old_obj = pickle.load(pickle_in)
+                print(f'File already exists...Date created {old_obj.sim_date}')
+                print(f'simulation time resolution: Old:-{old_obj.sim_time_resolution}, New:-{len(teval)}')
+                print(f'simulation droplet resolution: Old:-{old_obj.sim_droplet_resolution}, New:-{len(droplet_sizes)}')
+                action = input('Do you want to overwrite? [Y/N]')
+                if 'n' in action.lower():
+                    overwrite=False
+            if overwrite:    
+                with open(f'{fname}.pickle', 'wb') as pickle_out:
+                    pickle.dump(obj, pickle_out)
 
 
         # coughing_pdf = pdf * source_params['coughing']['Q'] * source_params['coughing']['t']
