@@ -1,8 +1,11 @@
 import numpy as np
+from numpy.lib.npyio import save
 import pandas as pd
 from scipy.integrate import solve_ivp
 from scipy.interpolate import InterpolatedUnivariateSpline
 import matplotlib.pyplot as plt
+from savepdf_tex import savepdf_tex
+from scipy.stats import lognorm
 
 
 def get_particle_distribution_parameters():
@@ -24,10 +27,6 @@ def eq2_12(cn, CMD, d, GSD, modes, ODE=False):
         GSD (arr): geometric standard deviation
     """
 
-    cn = cn.loc[modes]
-    CMD = CMD.loc[modes]
-    GSD = GSD.loc[modes]
-
     dd = 10**d if ODE else d
     if isinstance(d, float):
         sigma = 0
@@ -35,15 +34,16 @@ def eq2_12(cn, CMD, d, GSD, modes, ODE=False):
         sigma = np.zeros(shape=d.shape)
     else:
         raise TypeError('diameter type not recognised')
-
-    for cn_i,  CMD_i, GSD_i in zip(cn, CMD, GSD):
-        sigma = sigma + (cn_i / ((2*np.pi)**0.5 * np.log(GSD_i))) * \
-            np.exp(-(np.log(dd) - np.log(CMD_i))**2 / (2*(np.log(GSD_i))**2))
+    for i in modes:
+        cn_i = cn.loc[i]
+        CMD_i = CMD.loc[i]
+        GSD_i = GSD.loc[i]
+        sigma = sigma + (cn_i / ((2*np.pi)**0.5 * np.log(GSD_i))) * np.exp(-(np.log(dd/CMD_i))**2 / (2*(np.log(GSD_i))**2))
 
     return np.log(10) * sigma
 
 
-def get_particle_distribution(params, source, dia_range=[1, 1000], modes=['1', '2', '3'], plot=False, **kwargs):
+def get_particle_distribution(params, source, dia_range=[1, 1000], modes=['1', '2', '3'], plot=None, number_of_diameters=400, **kwargs):
     if plot:
         fig = plt.figure(figsize=(10, 4))
     concentrations = {}
@@ -56,24 +56,34 @@ def get_particle_distribution(params, source, dia_range=[1, 1000], modes=['1', '
         if 'dia_eval' in kwargs:
             d = kwargs['dia_eval']
         else:
-            d = np.logspace(np.log10(dia_range[0]), np.log10(dia_range[-1]), 400)
-
+            d = np.logspace(np.log10(dia_range[0]), np.log10(dia_range[-1]), number_of_diameters)
         dC_dlogdk = eq2_12(
             param_num['Cn_i'], param_num['CMD'], d, param_num['GSD'], modes=modes)
 
         if plot:
-            print(action, source[action]['t']*source[action]['Q'])
+            print(action, source[action]['t']*source[action]['Q'], param_num.T)
             plt.plot(d*1e-6, dC_dlogdk*1e6 , label=action)
-        concentrations[action] = dC_dlogdk*1e6
+        concentrations[action] = dC_dlogdk*1e6 # number concentration per
     if plot:
         plt.xlabel('d [m]')
-        plt.xlim([1e-7, 1e-3])
-        plt.ylim([1e-4, 1e6])
-        plt.ylabel('dC_dlogdk [$m^{-3}$]')
+        # plt.xlim([1e-7, 1e-3])
+        # plt.ylim([0.1, 1e6])
+        plt.ylabel(r'\$\frac{\mathrm{d}C_d}{\mathrm{d}log_{10} d} [m^{-3}]\$')
         plt.yscale('log')
         plt.xscale('log')
-        plt.legend()
-        plt.show()
+        plt.legend(loc='lower left', frameon=False)
+        plt.grid(True, alpha=0.5)
+        plt.tight_layout()
+        if plot == 'pdf-tex':
+            plt.xticks([1e-7, 1e-6, 1e-5, 1e-4, 1e-3],
+           [r'\$10^{-7}\$', r'\$10^{-6}\$', r'\$10^{-5}\$', r'\$10^{-4}\$', r'\$10^{-3}\$',])
+            plt.yticks([1e-4, 1e-2, 1e0, 1e2, 1e4, 1e6],
+           [r'\$10^{-4}\$', r'\$10^{-2}\$', r'\$10^{0}\$', r'\$10^{2}\$', r'\$10^{4}\$',r'\$10^{6}\$'])
+            fname = 'particle_distribution'
+            f_loc = '/Users/Tom/Box/NCS Project/models/figures/'
+            savepdf_tex(fig=fig, fig_loc=f_loc, name=fname)
+        else:
+            plt.show()
         plt.close()
     return d*1e-6, concentrations
 
@@ -133,4 +143,4 @@ if __name__ == '__main__':
         't': 0.5, 'Q': 1.25}}  # in litres and seconds
     # particle_cdf(params=parameters, modes=['1','2','3'])
     get_particle_distribution(params=parameters, modes=[
-                              '1', '2', '3'], source=source_params, plot=True)
+                              '1', '2', '3'], source=source_params, plot='show')
