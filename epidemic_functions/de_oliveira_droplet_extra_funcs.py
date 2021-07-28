@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def simulation_parameters(ventilation_velocity=0.0):                    
+def simulation_parameters(ventilation_velocity=0.0):
     return {# Simulation Parameters
             'mdSmall': 1e-12,
             'DSMALL': 1e-10,
@@ -28,7 +28,7 @@ def simulation_parameters(ventilation_velocity=0.0):
             'W_salt': 58.4,             #NaCl
             'rho_salt': 2160,
             'W_pro': 66500,             #BSA protein
-            'rho_pro': 1362, 
+            'rho_pro': 1362,
             'W_surf': 734,              #DPPC surfactant
             'rho_surf': 1000,
             }
@@ -37,7 +37,7 @@ def CL_h2o(T):
     """
     D.W. Green, R.H. Perry. Perry's Chemical Engineers' Handbook, 8th
     edition. McGraw-Hill Inc. 2008.
-    
+
     Input: T in K
     Output: CL in J/kg/K
     """
@@ -53,7 +53,7 @@ def Cp_air(T):
     """
     D.W. Green, R.H. Perry. Perry's Chemical Engineers' Handbook, 8th
     edition. McGraw-Hill Inc. 2008.
-    
+
     Input: T in K
     Output: Cp in J/kg/K
     """
@@ -61,7 +61,7 @@ def Cp_air(T):
     W= params['W_air']*1e3
     C1= 0.28958e5 ; C2= 0.0939e5 ; C3= 3.012e3; C4= 0.0758e5 ; C5= 1484
     C= C1 + C2*( (C3/T)/np.sinh(C3/T) )**2 + C4*( (C5/T)/np.cosh(C5/T) )**2 # J/kmol/K
-    #  J/(kg K)  =  J/(kmol K)  *  kmol/kg  *  1/ (g/mol) 
+    #  J/(kg K)  =  J/(kmol K)  *  kmol/kg  *  1/ (g/mol)
     return C / W
 
 
@@ -69,7 +69,7 @@ def CpV_h2o(T):
     """
     D.W. Green, R.H. Perry. Perry's Chemical Engineers' Handbook, 8th
     edition. McGraw-Hill Inc. 2008.
-    
+
     Input: T in K
     Output: Cp in J/kg/K
     """
@@ -78,16 +78,16 @@ def CpV_h2o(T):
     C1= 0.33363e5 ; C2= 0.2679e5 ; C3= 2.6105e3 ; C4= 0.08896e5 ; C5= 1169
     C= C1 + C2*( (C3/T)/np.sinh(C3/T) )**2 + C4*( (C5/T)/np.cosh(C5/T) )**2 # J/kmol/K
     #  J/(kg K)  =  J/(kmol K)  *  kmol/kg  *  1/ (g/mol)
-    return C / W 
+    return C / W
 
 
 
 
 def D_h2o_air(P,T):
-    """ 
+    """
     Properties of Gases and Liquids
     Fuller et al.
-    
+
     Input: T in K, P in Pa
     Output: D in m**2/s
     Molar masses
@@ -102,8 +102,8 @@ def D_h2o_air(P,T):
     # Diffusion volumes
     # #             2*C    + 6* H   + 1*O
     # sigma_c2h5oh= 2*15.9 + 6*2.31 + 1*6.11
-    sigma_h2o= 13.1 
-    sigma_air= 19.7 
+    sigma_h2o= 13.1
+    sigma_air= 19.7
 
     # D_AB in cm^2/s
     D_AB= (0.00143* T**1.75) / (Pbar * MAB**(1/2) * (sigma_air**(1/3) + sigma_h2o**(1/3))**2 )
@@ -114,7 +114,7 @@ def D_h2o_air(P,T):
 def lambda_air(T):
     """ D.W. Green, R.H. Perry. Perry's Chemical Engineers' Handbook, 8th
      edition. McGraw-Hill Inc. 2008.
-    
+
      Input: T in K
      Output: mu in W/(m K)
     """
@@ -127,7 +127,7 @@ def lambda_air(T):
 def lambda_h2o(T):
     """D.W. Green, R.H. Perry. Perry's Chemical Engineers' Handbook, 8th
     edition. McGraw-Hill Inc. 2008.
-   
+
     Input: T in K
     Output: mu in W/(m K)
     """
@@ -137,7 +137,7 @@ def lambda_h2o(T):
 def LV_c2h5oh(T):
     """ D.W. Green, R.H. Perry. Perry's Chemical Engineers' Handbook, 8th
      edition. McGraw-Hill Inc. 2008.
-    
+
      Input: T in K ... boiling point
      Output: Latent heat LV in J/kg
     """
@@ -145,15 +145,15 @@ def LV_c2h5oh(T):
     W = params['W_h20']*1e3
     C1= 5.2053e7 ; C2= 0.3199 ; C3= -0.212 ; C4= 0.25795 ; C5= 0
     Tc =  647.096   # K ... critical temperature
-    Tr= T/Tc 
-    L = C1* (1-Tr)**(C2 + C3*Tr + C4*Tr**2 + C5*Tr**3)   # J/kmol        
+    Tr= T/Tc
+    L = C1* (1-Tr)**(C2 + C3*Tr + C4*Tr**2 + C5*Tr**3)   # J/kmol
     # J/kg = J/kmol * kmol/kg  *  1/(g/mol)
     return L / W
 
 def mu_air(T):
     """ D.W. Green, R.H. Perry. Perry's Chemical Engineers' Handbook, 8th
      edition. McGraw-Hill Inc. 2008.
-    
+
      Input: T in K
      Output: mu in Pa*s (= kg/(m s))
     """
@@ -164,7 +164,7 @@ def mu_h2o(T):
     """
     D.W. Green, R.H. Perry. Perry's Chemical Engineers' Handbook, 8th
     edition. McGraw-Hill Inc. 2008.
-    
+
     Input: T in K
     Output: mu in Pa*s (= kg/(m s))
     """
@@ -175,11 +175,11 @@ def Psat_h2o(T):
     """
     D.W. Green, R.H. Perry. Perry's Chemical Engineers' Handbook, 8th
     edition. McGraw-Hill Inc. 2008.
-    
+
     Input: T in K
     Output: Psat in Pa
     """
-    C1 = 73.649 ; C2 = -7258.2 ; C3 = -7.3037 ; C4 = 4.1653E-06 ; C5 = 2 
+    C1 = 73.649 ; C2 = -7258.2 ; C3 = -7.3037 ; C4 = 4.1653E-06 ; C5 = 2
     return np.exp(C1 + C2/T + C3*np.log(T) + C4*T**C5)
 
 
@@ -188,7 +188,7 @@ def rhoL_h2o(T):
     """
     D.W. Green, R.H. Perry. Perry's Chemical Engineers' Handbook, 8th
     edition. McGraw-Hill Inc. 2008.
-    
+
     Input: T in K
     Output: rhoL in kg/m^3
     """
@@ -205,13 +205,13 @@ def rhoL_h2o(T):
 
 def saliva_mass(D,Td,saliva,n_v):
 
-    ## Properties 
+    ## Properties
     params = simulation_parameters()
     # Saliva composition
     c_water=saliva[0]
     c_salt=saliva[1]
     c_pro=saliva[2]
-    c_surf=saliva[3]                      
+    c_surf=saliva[3]
 
     # Densities of each component (kg/m3)
     rho_salt=2160 #NaCl

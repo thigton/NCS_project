@@ -1,3 +1,7 @@
 *.m
 *.pyc
 *zip
+*.pickle
+*.pdf_tex
+*.tex
+*.pdf

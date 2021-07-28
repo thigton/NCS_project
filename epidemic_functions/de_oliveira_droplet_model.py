@@ -44,9 +44,9 @@ def saliva_evaporation(yw, md, Td, Tinf, RH, saliva, t, ventilation_velocity):
     M_s = params['W_salt']
     M_pro = params['W_pro']
     M_surf = params['W_surf']
-
     # Water density
     rho_w = funcs.rhoL_h2o(Td)
+    
 
     # Property of "solid phase"
     # Total concentration
@@ -82,7 +82,7 @@ def saliva_evaporation(yw, md, Td, Tinf, RH, saliva, t, ventilation_velocity):
 
     # Other properties
     # Mole fraction
-    sumA = (m_salt/M_s) + (m_pro/M_pro) + (m_surf/M_surf) + (m_w/M_w)
+    sumA = (m_salt/M_s) + (m_pro/M_pro) + (m_surf/M_surf) + (m_w/M_w) # kmol
     xw = (m_w/M_w) / sumA  # mole fraction of water
 
     # Surface tension of water
@@ -153,8 +153,8 @@ def state_dot_AS_2(t, state, TG, RH, s_comp, lambda_v, integrate, ventilation_ve
 
     # parameters
     params = funcs.simulation_parameters(ventilation_velocity=ventilation_velocity)
-    W_air = params['W_air']
-    W_h2o = params['W_h20']
+    W_air = params['W_air'] # g/mol
+    W_h2o = params['W_h20']*1e3 # g/mol
     RR = params['RR']
     g = params['g']
     pG = params['pG']
@@ -222,8 +222,8 @@ def state_dot_AS_2(t, state, TG, RH, s_comp, lambda_v, integrate, ventilation_ve
         # Derived quantities
 
         us = abs(v-uG)    # m/s ... difference between particle and gas velocity
-        theta1 = CpG / CL
-        taud = rhoL*D**2/(18*muG)      # particle time constant for Stokes flow
+        #theta1 = CpG / CL
+        #taud = rhoL*D**2/(18*muG)      # particle time constant for Stokes flow
 
         # Non-dimensional numbers
 
@@ -308,11 +308,12 @@ def state_dot_AS_2(t, state, TG, RH, s_comp, lambda_v, integrate, ventilation_ve
         return md_dot
 
 class DataClass():
-    def __init__(self, air_temp, RH, saliva, Lambda,
+    def __init__(self, air_temp, RH, saliva, viral_load_per_volume_init, Lambda,
                 t_end, vent_u, particle_distribution, state_0, results):
         self.air_temp = air_temp
         self.RH = RH
         self.saliva = saliva
+        self.n_v0 = viral_load_per_volume_init
         self.Lambda = Lambda
         self.simulation_length = t_end
         self.sim_time_resolution = results[0].shape[0]
@@ -351,7 +352,7 @@ if __name__ == '__main__':
 
     # SARS-CoV-1 Exponentional decay constant
     lambda_i = 0.636/3600  # (s^-1)
-    n_v0 = (10**10)*10**6  # (copies/m^3 of liquid)
+    n_v0 = (1e10)*1e6  # (copies/m^3 of liquid)
     for vent_u in vent_u_arr:
         # Load other parameters
         params = funcs.simulation_parameters(ventilation_velocity=vent_u)
@@ -394,7 +395,7 @@ if __name__ == '__main__':
     
                 # Initial droplet mass from composition
                 [md_0, rho_n, yw_0, Nv_0] = funcs.saliva_mass(D_0, Td_0, saliva, n_v0)
-    
+
                 # Integration
                 state_0 = [x_0, v_0, Td_0, md_0, yw_0, Nv_0]  # initial state
                 # Integration
@@ -459,6 +460,7 @@ if __name__ == '__main__':
                             RH=RH,
                             state_0=state_0,
                             saliva=s_comp,
+                            viral_load_per_volume_init=n_v0,
                             Lambda=lambda_v,
                             t_end=t_end,
                             vent_u=params['uG'],

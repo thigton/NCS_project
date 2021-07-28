@@ -69,7 +69,7 @@ def get_particle_distribution(params, source, dia_range=[1, 1000], modes=['1', '
         plt.xlabel('d [m]')
         plt.xlim([1e-7, 1e-3])
         plt.ylim([1e-4, 1e6])
-        plt.ylabel('dC_dlogdk [$cm^{-3}$]')
+        plt.ylabel('dC_dlogdk [$m^{-3}$]')
         plt.yscale('log')
         plt.xscale('log')
         plt.legend()
