@@ -9,7 +9,7 @@ from scipy.stats import lognorm
 
 
 def get_particle_distribution_parameters():
-    df = pd.read_csv('/home/tdh17/Documents/BOX/NCS Project/models/epidemic_functions/tri-modal-logn-respiratory-particle-distribution.csv',
+    df = pd.read_csv('/Users/Tom/Box/NCS Project/models/epidemic_functions/tri-modal-logn-respiratory-particle-distribution.csv',
                      header=[0, 1],
                      index_col=[0],
                      )

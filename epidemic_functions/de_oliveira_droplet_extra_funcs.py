@@ -3,7 +3,7 @@ import numpy as np
 
 def simulation_parameters(ventilation_velocity=0.0):
     return {# Simulation Parameters
-            'mdSmall': 1e-12,
+            'mdSmall': 1e-10,
             'DSMALL': 1e-10,
             # Initial conditions
             'x_0': 1.5,                 # m ... initial droplet position
@@ -12,7 +12,7 @@ def simulation_parameters(ventilation_velocity=0.0):
             # Physical parameters
             'pG': 1.0*101325,           # Pa ... ambient pressure
             'Tb': 373.15,               # K ... boiling point at pG
-            'uG': ventilation_velocity,                  # m/s ... velocity of gas stream
+            'uG': ventilation_velocity, # m/s ... velocity of gas stream
             'g': -9.81 ,                # m/s2 ... gravity
             # Contstants
             'RR': 8.31445985,           # J/(mol K) ... ideal gas constant
@@ -22,10 +22,10 @@ def simulation_parameters(ventilation_velocity=0.0):
             'Tc': 647.096,              # K ... critical temperature
             'pc': 22.064*1e6,           # Pa ... critical pressure
             # Air
-            'W_n2': 28.02*1e-3,
+            'W_n2': 28.02*1e-3,         # kg/mol ... molar mass
             'W_air': 28.960*1e-3,       # kg/mol ... molar mass
             # Saliva components
-            'W_salt': 58.4,             #NaCl
+            'W_salt': 58.4,             #NaCl # g/mol ... molar mass
             'rho_salt': 2160,
             'W_pro': 66500,             #BSA protein
             'rho_pro': 1362,
@@ -35,6 +35,7 @@ def simulation_parameters(ventilation_velocity=0.0):
 
 def CL_h2o(T):
     """
+    Droplet heat capacity
     D.W. Green, R.H. Perry. Perry's Chemical Engineers' Handbook, 8th
     edition. McGraw-Hill Inc. 2008.
 
@@ -80,9 +81,6 @@ def CpV_h2o(T):
     #  J/(kg K)  =  J/(kmol K)  *  kmol/kg  *  1/ (g/mol)
     return C / W
 
-
-
-
 def D_h2o_air(P,T):
     """
     Properties of Gases and Liquids
@@ -120,9 +118,6 @@ def lambda_air(T):
     """
     C1= 0.00031417 ; C2= 0.7786 ; C3= -0.7116 ; C4= 2121.7
     return C1*T**C2 / (1 + C3/T + C4/T**2)
-
-
-
 
 def lambda_h2o(T):
     """D.W. Green, R.H. Perry. Perry's Chemical Engineers' Handbook, 8th
@@ -204,73 +199,93 @@ def rhoL_h2o(T):
 
 
 def saliva_mass(D,Td,saliva,n_v):
-    # Saliva composition
+    """All units checked and correct
+    Determine the initial mass, density,
+    mass fraction and viral load of the droplet
+
+    Args:
+        D (float): droplet diameter units m ?
+        Td (float): air temperature units K
+        saliva (list): saliva composition concentration [water, salt, protein, surfacant] units mg/ml or kg/m3
+        n_v (float): initial viral load concentration. copies/m^3
+    Returns:
+        list: droplet initial mass, density, mass fraction and viral load
+    """
+    # Saliva composition kg/m^3
     c_water=saliva[0]
     c_salt=saliva[1]
     c_pro=saliva[2]
     c_surf=saliva[3]
-
+    params = simulation_parameters()
     # Densities of each component (kg/m3)
-    rho_salt=2160 #NaCl
-    rho_pro=1362  #BSA protein
-    rho_surf=1000 #DPPC surfactant
-
-    #Molecular weight of each component (kg/kmol)
-
-    #Water density
-    rho_w = rhoL_h2o(Td)
+    rho_w = rhoL_h2o(Td) # water
+    rho_salt=params['rho_salt'] #NaCl
+    rho_pro=params['rho_pro']  #BSA protein
+    rho_surf=params['rho_surf'] #DPPC surfactant
 
     ## Property of "solid phase"
-    #Total concentration
+    #Total concentration [kg/m3]
     c_tot = c_salt + c_pro +c_surf
 
     # Volumes
-    V_d = (np.pi/6)*(D)**(3) #droplet diameter
+    V_d = (np.pi/6)*(D)**(3) #droplet diameter [m3]
 
-    # Mass of each component in the droplet
+    # Mass of each component in the droplet [kg]
     m_salt=c_salt*V_d
     m_pro=c_pro*V_d
     m_surf=c_surf*V_d
 
-    # Volumes
+    # Volumes [m3]
     V_n=((m_salt/rho_salt + m_pro/rho_pro + m_surf/rho_surf)) #of solid part
 
-    V_w = V_d - V_n
-    m_w = V_w*rho_w
+    V_w = V_d - V_n # volume of water part [m3]
+    m_w = V_w*rho_w # mass of water part [kg]
 
-    m_n = m_salt + m_pro + m_surf
-    md = m_n + m_w
-    rho_n = m_n/V_n if V_n != 0  else 0
+    m_n = m_salt + m_pro + m_surf # mass of solids [kg]
+    md = m_n + m_w # total mass [kg]
+    rho_n = m_n/V_n if V_n != 0  else 0 # density of solids [kg/m3]
 
-    yw = m_w/(md)
+    yw = m_w/(md) # mass fraction . no units
 
     ## Emitted virus
-    Nv = V_d*n_v
+    Nv = V_d*n_v # copies
     return [md, rho_n, yw, Nv]
 
 
-def saliva_evaporation(yw, md, Td, Tinf, RH, saliva, t):
-    # yw = mass fraction of water in the droplet (-)
-    # md = mass of droplet kg
-    # Td = droplet temperature [K]
-    # Tinf = ambient temperature [k]
-    # s_comp = saliva composition [c_water c_salt c_pro c_surf] (kg/m3)
+def saliva_evaporation(yw, md, Td, Tinf, RH, saliva,):
+    """all units checked and correct!
 
+    Args:
+        yw (float): mass fraction of water in the droplet (-)
+        md (float): mass of droplet kg
+        Td (float): droplet temperature [K]
+        Tinf (float): ambient temperature [k]
+        RH (float): Relative humidity [0-1]
+        saliva (list): saliva composition [c_water c_salt c_pro c_surf] (kg/m3)
+
+    Returns:
+        list: [Sw = pw/psat,w (-), dk = droplet droplet diameter (m)]
+    """
+    # yw = 
+    # md = 
+    # Td = 
+    # Tinf = 
+    # s_comp = s
     # Sw = pw/psat,w (-)
     # dk = droplet droplet diameter (m)
 
     # Properties
     params = simulation_parameters()
     # Saliva composition
-    c_water = saliva[0]
     c_salt = saliva[1]
     c_pro = saliva[2]
     c_surf = saliva[3]
 
-    # Ideal gas constant  (J/molK)
+    # Ideal gas constant  (J/mol.K)
     R = params['RR']
 
     # Densities of each component (kg/m3)
+    rho_w = rhoL_h2o(Td) # water
     rho_salt = params['rho_salt']  # NaCl
     rho_pro = params['rho_pro']  # BSA protein
     rho_surf = params['rho_surf']  # DPPC surfactant
@@ -281,94 +296,94 @@ def saliva_evaporation(yw, md, Td, Tinf, RH, saliva, t):
     M_pro = params['W_pro']
     M_surf = params['W_surf']
 
-    # Water density
-    rho_w = rhoL_h2o(Td)
-
     # Property of "solid phase"
-    # Total concentration
+    # Total concentration kg/m3
     c_tot = c_salt + c_pro + c_surf
 
-    # Mass fractions of each component in the solid phase
+    # Mass fractions of each component in the solid phase [-]
     y_salt = c_salt/c_tot if c_tot != 0 else 0
     y_pro = c_pro/c_tot if c_tot != 0 else 0
     y_surf = c_surf/c_tot if c_tot != 0 else 0
 
     # Total mass of solid components
-    m_n = (1-yw)*md  # mass of solids
-    m_w = yw*md  # mass of water
+    m_n = (1-yw)*md  # mass of solids kg
+    m_w = yw*md  # mass of water kg
 
-    # Mass of each component in the droplet
+    # Mass of each component in the droplet [kg]
     m_salt = y_salt*m_n
     m_pro = y_pro*m_n
     m_surf = y_surf*m_n
 
-    # Volumes
+    # Volumes [m3]
     V_n = ((m_salt/rho_salt + m_pro/rho_pro + m_surf/rho_surf))  # of solid part
     V_w = m_w/rho_w  # of liquid part
 
-    # Mean density of solid part
+    # Mean density of solid part [kg/m3]
     rho_n = m_n/V_n if V_n != 0 else 0
 
-    # Mean diameter of the solid part
+    # Mean diameter of the solid part [m]
     d_n = (6*V_n/np.pi)**(1/3)
 
-    # Aproximated volume assumption, V_d = Vw + Vn
+    # Aproximated volume assumption, V_d = Vw + Vn [m3]
     V_d = V_w + V_n
-    D = (6*V_d/np.pi)**(1/3)  # droplet diameter
+    D = (6*V_d/np.pi)**(1/3)  # droplet diameter [m]
 
     # Other properties
-    # Mole fraction
+    # Mole fraction [kmol]
     sumA = (m_salt/M_s) + (m_pro/M_pro) + (m_surf/M_surf) + (m_w/M_w)
-    xw = (m_w/M_w) / sumA  # mole fraction of water
+    xw = (m_w/M_w) / sumA  # mole fraction of water [-]
 
     # Surface tension of water
     # Taken from this reference "Surface Tensions of Inorganic Multicomponent Aqueous Electrolyte Solutions and Melts"
     # https://pubs.acs.org/doi/pdf/10.1021/jp105191z
-    TC = Td-273.15
-    sig_w = 0.2358*((374.00-TC)/647.15)**1.256*(1-0.625*((374.00-TC)/647.15))
-    # Surface tension
-    sig_s = sig_w
+    sig_w = 235.8*((647.15-Td)/647.15)**1.256*(1-0.625*((647.15-Td)/647.15)) # mN m-1
+    # Surface tension 
+    sig_s = sig_w*1e-3 # N m-1
 
-    # mass of parts relative to water
+    # mass of parts relative to water [-]
     nu_ion = 2
     mf_salt = m_salt/m_w
     mf_pro = m_pro/m_w
     mf_surf = m_surf/m_w
 
-    # Molalities (of binary solution) (#kg/mol)
+    # Molalities (of binary solution) (mol/kg)
     # more mass stuff
     molal_s = (m_salt/M_s)*1000/m_w
     molal_p = (m_pro/M_pro)*1000/m_w
     molal_surf = (m_surf/M_surf)*1000/m_w
 
     # Osmotic coefficient NaCl, strong electrolyte
-    cf = 1000*molal_s*(M_s)/rho_salt  # molal_s here in kmol/kg
-    Yf = 77.4e-3
-    Aphi = 0.392
-    bpit = 1.2
-    Betaof = 0.018
+    cf = 1e-3*molal_s*(M_s)/rho_salt  # here molal_s in kmol/kg : cf: m3/kg
+    Yf = 77.4e-3 # mol/m3
+    Aphi = 0.392 # (kg/mol)**(1/2)
+    bpit = 1.2 # (kg/mol)**(1/2)
+    Betaof = 0.018 # [kg/mol]
     phi_s = 1 + 2*cf*Betaof*Yf - Aphi * \
-        (cf**0.5)*(Yf**0.5)/(np.sqrt(2)+bpit*(cf**0.5)*(Yf**0.5))
+        (cf**0.5)*(Yf**0.5)/(np.sqrt(2)+bpit*(cf**0.5)*(Yf**0.5)) # [-]
 
     # Osmotic coefficient BSA and DPCC Surfactant
 
     # BSA protein
     if molal_p != 0:
-        gms = ((rho_pro/rho_w)/(molal_p*M_pro/1000) + 1)**(1/3)
-        phi_p = 1 + (gms**(-3))*(3-gms**(-6))/(1-gms**(-3))**2
+        gms = ((rho_pro/rho_w)/(molal_p*M_pro/1000) + 1)**(1/3) # [-]
+        phi_p = 1 + (gms**(-3))*(3-gms**(-6))/(1-gms**(-3))**2 # [-]
     else:
-        gms = 0
-        phi_p = 0
+        gms = None
+        phi_p = None
 
     # Surfactant
     if molal_surf != 0:
-        gms_surf = ((rho_surf/rho_w)/(molal_surf*M_surf/1000) + 1)**(1/3) if molal_surf != 0  else 1
-        phi_surf = 1 + (gms_surf**(-3))*(3-gms_surf**(-6))/(1-gms_surf**(-3))**2
+        gms_surf = ((rho_surf/rho_w)/(molal_surf*M_surf/1000) + 1)**(1/3) # [-]
+        phi_surf = 1 + (gms_surf**(-3))*(3-gms_surf**(-6))/(1-gms_surf**(-3))**2 # [-]
     else:
-        gms_surf = 0
-        phi_surf = 0
+        gms_surf = None
+        phi_surf = None
     # Evaluate Sw (equation 2.10)
-    Sw = np.exp(((4*(M_w/1000)*sig_s)/(R*Tinf*rho_w*D)) - ((M_w*rho_n*d_n**3)/(rho_w*(D**3-d_n**3)))
+    if molal_p == 0  and molal_s == 0 and molal_surf == 0:
+        Sw = np.exp(((4*(M_w/1000)*sig_s)/(R*Tinf*rho_w*D)))
+    else:
+
+        Sw = np.exp(((4*(M_w/1000)*sig_s)/(R*Tinf*rho_w*D)) - ((M_w*rho_n*d_n**3)/(rho_w*(D**3-d_n**3)))
                 * (nu_ion*phi_s*mf_salt/M_s + phi_surf*mf_surf/M_surf + phi_p*mf_pro/M_pro))
 
     return [Sw, D]
