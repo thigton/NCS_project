@@ -43,16 +43,27 @@ def eq2_12(cn, CMD, d, GSD, modes, ODE=False):
     return np.log(10) * sigma
 
 
-def get_particle_distribution(params, source, dia_range=[1, 1000], modes=['1', '2', '3'], plot=None, number_of_diameters=400, **kwargs):
+def get_particle_distribution(params, dia_range=[1, 1000], modes=['1', '2', '3'], plot=False, number_of_diameters=400, **kwargs):
+    """Tri modal droplet distribution from either speaking or coughing
+
+    Args:
+        params (pd.DataFrame): constants for lognormal distribution fit
+        dia_range (list, optional): min and maximume diameter to consider. Defaults to [1, 1000].
+        modes (list, optional): modes of the tri modal distribution to include. Defaults to ['1', '2', '3'].
+        plot (str, optional): Type of plot to produce current options ['pdf-tex', True]. Defaults to False
+        number_of_diameters (int, optional): Number of different diameters to do. Defaults to 400.
+
+    Returns:
+        tup<array>: array of diameters [m], array of droplet number concentration [m^-3]
+    """
     if plot:
-        fig = plt.figure(figsize=(10, 4))
+        fig = particle_number_conc_pdf(save_format=plot)
     concentrations = {}
     for action in params.index.get_level_values(1).unique():
         if action == 'Na':
             continue
         param_num = params.xs(key=action, axis=0, level=1).sort_index(
             axis=0, ascending=True)
-
         if 'dia_eval' in kwargs:
             d = kwargs['dia_eval']
         else:
@@ -60,32 +71,55 @@ def get_particle_distribution(params, source, dia_range=[1, 1000], modes=['1', '
         dC_dlogdk = eq2_12(
             param_num['Cn_i'], param_num['CMD'], d, param_num['GSD'], modes=modes)
 
+        concentrations[action] = particle_numbers_from_dCndlogD(diameters=d, dCndlogD=dC_dlogdk) # number concentration per
         if plot:
-            print(action, source[action]['t']*source[action]['Q'], param_num.T)
-            plt.plot(d*1e-6, dC_dlogdk*1e6 , label=action)
-        concentrations[action] = dC_dlogdk*1e6 # number concentration per
+            fig.add_data(d, concentrations, action)
     if plot:
-        plt.xlabel('d [m]')
-        # plt.xlim([1e-7, 1e-3])
-        # plt.ylim([0.1, 1e6])
-        plt.ylabel(r'\$\frac{\mathrm{d}C_d}{\mathrm{d}log_{10} d} [m^{-3}]\$')
-        plt.yscale('log')
-        plt.xscale('log')
-        plt.legend(loc='lower left', frameon=False)
-        plt.grid(True, alpha=0.5)
-        plt.tight_layout()
-        if plot == 'pdf-tex':
-            plt.xticks([1e-7, 1e-6, 1e-5, 1e-4, 1e-3],
+        fig.save()
+        
+    return d*1e-6, concentrations
+
+class particle_number_conc_pdf:
+    def __init__(self, save_format):
+        self.save_format = save_format
+        self.fname = 'particle_distribution'
+        self.f_loc = '/Users/Tom/Box/NCS Project/models/figures/'
+        self.fig = plt.figure(figsize=(10, 4))
+        self.ax = self.fig.add_subplot(1,1,1)
+        self.ax.set_xlabel('d [m]')
+        self.ax.set_xlim([1e-7, 1e-3])
+        self.ax.set_ylim([0.1, 1e6])
+        self.ylabel = r'\$(pdf) [m^{-1}]\$' if self.save_format == 'pdf-tex' else '(pdf) $[m^{-1}]$'
+        self.ax.set_ylabel(self.ylabel)
+        self.ax.set_yscale('log')
+        self.ax.set_xscale('log')
+        self.ax.grid(True, alpha=0.5)
+
+        if self.save_format == 'pdf-tex':
+            self.ax.set_xticks([1e-7, 1e-6, 1e-5, 1e-4, 1e-3],
            [r'\$10^{-7}\$', r'\$10^{-6}\$', r'\$10^{-5}\$', r'\$10^{-4}\$', r'\$10^{-3}\$',])
-            plt.yticks([1e-4, 1e-2, 1e0, 1e2, 1e4, 1e6],
+            self.ax.set_yticks([1e-4, 1e-2, 1e0, 1e2, 1e4, 1e6],
            [r'\$10^{-4}\$', r'\$10^{-2}\$', r'\$10^{0}\$', r'\$10^{2}\$', r'\$10^{4}\$',r'\$10^{6}\$'])
-            fname = 'particle_distribution'
-            f_loc = '/Users/Tom/Box/NCS Project/models/figures/'
-            savepdf_tex(fig=fig, fig_loc=f_loc, name=fname)
+
+    def add_data(self, diameters, conc, action):
+        self.ax.plot(diameters*1e-6, conc[action] , label=action)
+        plt.tight_layout()
+    
+    def save(self):
+        self.ax.legend(loc='lower left', frameon=False)
+        if self.save_format == 'pdf-tex':
+            savepdf_tex(fig=self.fig, fig_loc=self.f_loc, name=self.fname)
         else:
             plt.show()
         plt.close()
-    return d*1e-6, concentrations
+
+def particle_numbers_from_dCndlogD(diameters, dCndlogD, plot=False):
+    boundaries = (diameters[:-1] + diameters[1:]) /2
+    boundaries = np.insert(boundaries, 0, 2*diameters[0] - boundaries[0])
+    boundaries = np.append(boundaries, 2*diameters[-1]-boundaries[-1])
+    boundaries = np.log10(boundaries)
+    return dCndlogD*(boundaries[1:] - boundaries[:-1])*1e6
+
 
 
 def particle_dist_ODE(d, y, *args):
@@ -143,4 +177,4 @@ if __name__ == '__main__':
         't': 0.5, 'Q': 1.25}}  # in litres and seconds
     # particle_cdf(params=parameters, modes=['1','2','3'])
     get_particle_distribution(params=parameters, modes=[
-                              '1', '2', '3'], source=source_params, plot='show')
+                              '1', '2', '3'], plot='show')

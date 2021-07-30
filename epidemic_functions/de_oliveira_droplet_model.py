@@ -247,11 +247,11 @@ if __name__ == '__main__':
                          'coughing': {'t': 0.5,
                                       'Q': 1.25}}  # in litres and seconds
         particle_distribution_params = get_particle_distribution_parameters()
-        # droplet sizes [mm] pdf in ^^^TBC^^^ litre^-3 mm^[-1]
+        # droplet sizes [m] pdf in m[-1]
         droplet_sizes, pdf = get_particle_distribution(params=particle_distribution_params,
                                                        modes=['1', '2', '3'],
                                                        source=source_params,
-                                                       number_of_diameters=400)
+                                                       number_of_diameters=500)
         Td_0 = params['Td_0']
         mdSMALL = params['mdSmall']
         x_0 = params['x_0']
@@ -351,10 +351,10 @@ if __name__ == '__main__':
                     ax[2].plot(t, soln.y[5, :], ls='-', label=f'd:{droplet*1e6:0.1f}')
                     ax[2].set_xlabel('t (s)')
                     ax[2].set_ylabel('Nv(PFU)')
-
-            ax[2].legend(loc='upper left', bbox_to_anchor=(1,1))
-            plt.show()
-            plt.close()
+            if plot:
+                ax[2].legend(loc='upper left', bbox_to_anchor=(1,1))
+                plt.show()
+                plt.close()
 
             # SAVE ZE DAATA
             obj = DataClass(air_temp=TG,
@@ -369,8 +369,8 @@ if __name__ == '__main__':
                             results=(X_df, v_df, Td_df, md_df, yw_df, Nv_df, D_df))
             if not os.path.exists(f'{os.path.dirname(os.path.realpath(__file__))}/data_files/'):
                 os.mkdir(f'{os.path.dirname(os.path.realpath(__file__))}/data_files/')
-            fname = f'{os.path.dirname(os.path.realpath(__file__))}/data_files/RH_{RH}_u_{params["uG"]}_T_{TG-273.15}_comp_{comp}'.replace('.','-')
 
+            fname = f'{os.path.dirname(os.path.realpath(__file__))}/data_files/RH_{RH}_u_{params["uG"]}_T_{TG-273.15}_comp_{comp}'.replace('.','-')
 
             overwrite=True
             if os.path.isfile(f'{fname}.pickle'):
@@ -382,9 +382,9 @@ if __name__ == '__main__':
                     action = input('Do you want to overwrite? [Y/N]')
                     if 'n' in action.lower():
                         overwrite=False
-                if overwrite:    
-                    with open(f'{fname}.pickle', 'wb') as pickle_out:
-                        pickle.dump(obj, pickle_out)
+            if overwrite:    
+                with open(f'{fname}.pickle', 'wb') as pickle_out:
+                    pickle.dump(obj, pickle_out)
 
 
         # coughing_pdf = pdf * source_params['coughing']['Q'] * source_params['coughing']['t']
