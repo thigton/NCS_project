@@ -1,104 +1,204 @@
 import numpy as np
 import pandas as pd
 from scipy.integrate import solve_ivp
+from scipy.optimize import root
 import de_oliveira_droplet_extra_funcs as funcs
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
+import time
 
 def reynolds_number(rho_g, diameter, abs_velocity, dynam_viscosity):
     return rho_g*(abs_velocity)*diameter/dynam_viscosity
 
 def drag_coefficient(Re):
-    return (24/Re)*(1+(1/6)*Re**(2/3)) if Re < 1e3 else 0.424
+    if isinstance(Re, float):
+        if Re == 0:
+            return 1e10
+        elif Re >= 1e3:
+            return 0.424
+        else:
+            return (24/Re)*(1+(1/6)*Re**(2/3))
+    elif isinstance(Re, np.ndarray):
+        return np.where(Re >= 1e3, 0.424, np.where(Re==0, 1e20, (24/Re)*(1+(1/6)*Re**(2/3))))
+    else:
+        raise TypeError('Reynolds number should be either a float or a numpy.ndarray')
 
-def oneDvelocityFPE(t, P, diameter, TG, Td, RH, vent_w, sigma, w_arr):
+def steady_state_velocity(soln, *data):
+    w = soln[0]
+    rho_g, rho_l, D, w_v, muG, g = data
+    Re = reynolds_number(rho_g=rho_g, diameter=D,
+                         abs_velocity=abs(w_v-w),
+                         dynam_viscosity=muG)
+    Cd = drag_coefficient(Re)
+    return 3*Cd/D * (rho_g/rho_l)*abs(w_v-w) * (w_v-w) + (1- rho_g/rho_l)*g
+
+def steady_state_velocity_simple(soln, *data):
+    w = soln[0]
+    w_v, drag, g = data
+    return drag*abs(w_v-w)*(w_v-w) + g
+
+def oneDvelocityFPE(t, P, params, drag=None):
     print(f'time: {t:0.6f} secs', end='\r')
-
-    lw = w_arr[0]
-    uw = w_arr[-1]
-    delta_w = w_arr[1] - w_arr[0]
-
-    params = funcs.simulation_parameters(ventilation_velocity=vent_w)
-    pG = params.get('pG')
-    RR = params.get('RR')
-    W_air = params.get('W_air') * 1e3
-    W_h2o = params.get('W_h20') * 1e3
-    g = params.get('g')
-    p_h2o = RH*funcs.Psat_h2o(TG)  # TG = air_temperature [Pa]
-    x_h2o = p_h2o/pG  # vapor pressure as a fraction of amb pressure [-]
-    YG = x_h2o*W_h2o/(x_h2o*W_h2o + (1-x_h2o)*W_air) #[-]
-    TR = (2*Td + 1*TG)/3 #[K]
-    # YR = (2*Yseq + 1*YG)/3  # mass fraction [-]
-    YR = YG  # mass fraction of water in air far away from 
-    WR = (YR/W_h2o + (1-YR)/W_air)**(-1) # [kg/kmol]
-
-    rho_g = pG / (RR/(WR/1000) * TR)  # ideal gas law
-    rhoInf = pG / (RR/(W_air/1000) * TG)
-    rho_l = funcs.rhoL_h2o(Td)
-    muG = YR*funcs.mu_h2o(TR) + (1-YR)*funcs.mu_air(TR)
-    
+    delta_w = params.w_arr[1] - params.w_arr[0]
     diff_eqs = []
-    for i in range(len(w_arr)):
+    abs_w = np.abs(params.w_arr-params.vent_w)
+    Red = reynolds_number(rho_g=params.rhoInf, diameter=params.diameter, abs_velocity=abs_w, dynam_viscosity=params.muG)
+    Cd = drag_coefficient(Red)
+
+    if drag:
+        a = drag*abs(params.vent_w-params.w_arr)*(params.vent_w-params.w_arr) + params.g
+    else:
+        a = params.g*(1-params.rho_g/params.rho_l) + 3*Cd*params.rho_g*abs_w*(params.vent_w - params.w_arr)/(params.rho_l*diameter)
+    
+    for i in range(len(params.w_arr)):
         # print(i, end='\r')
-        abs_w = abs(w_arr[i]-vent_w)
-        Red = reynolds_number(rho_g=rhoInf, diameter=diameter, abs_velocity=abs_w, dynam_viscosity=muG) 
-        Cd = drag_coefficient(Red)
-        a = g*(1-rho_g/rho_l) + 3*Cd*rho_g*abs_w*(vent_w - w_arr[i])/(rho_l*diameter) 
-        
         b = sigma
         if i == 0:
-            dPdw = (P[i+1] - P[i]) / (delta_w) # First order forward difference
-            d2Pdw2 = (P[i+2] - 2*P[i+1] + P[i])/delta_w**2 # second order forward difference 
-        
-        elif i == len(w_arr)-1:
-            dPdw = (P[i] - P[i-1]) / (delta_w) # First order backward difference
-            d2Pdw2 = (P[i] - 2*P[i-1] + P[i-2])/delta_w**2 # second order backward difference 
+            dPdw = (a[i+1]*P[i+1] - a[i]*P[i]) / (delta_w) # First order forward difference
+            d2Pdw2 = (b*P[i+2] - 2*b*P[i+1] + b*P[i])/delta_w**2 # second order forward difference
 
+        elif i == len(params.w_arr)-1:
+            dPdw = (a[i]*P[i] - a[i-1]*P[i-1]) / (delta_w) # First order backward difference
+            d2Pdw2 = (b*P[i] - 2*b*P[i-1] + b*P[i-2])/delta_w**2 # second order backward difference
         else:
-            dPdw = (P[i+1] - P[i-1]) / (2*delta_w) # First order central difference
-            d2Pdw2 = (P[i+1] - 2*P[i] + P[i-1])/delta_w**2 # second order central difference 
-        dPdt = -a*dPdw + 0.5*sigma*d2Pdw2
+            dPdw = (a[i+1]*P[i+1] - a[i-1]*P[i-1]) / (2*delta_w) # First order central difference
+            d2Pdw2 = (b*P[i+1] - 2*b*P[i] + b*P[i-1])/delta_w**2 # second order central difference
+
+        dPdt = -dPdw + 0.5*d2Pdw2
         diff_eqs.append(dPdt)
 
     return diff_eqs
 
 
-if __name__ == '__main__':
-    droplet_temperature = 30 + 273.15 # [K]
-    ambient_temperature = 20 + 273.15 # [K]
-    relative_humidity = 0.6
-    vent_w = 0.0127
-    w_bounds = [-0.1, 0.1]
-    sigma = 0.01
-    w_vals = np.linspace(w_bounds[0], w_bounds[1], 201)
-    w0 = 0
-    P0 = np.zeros(shape=w_vals.shape)
-    w0_idx = np.where(np.isin(w_vals, w0))[0]
-    P0[w0_idx] = 1
-    t_bounds = [0, 1]
-    diameter = 1e-5
-    soln = solve_ivp(fun=oneDvelocityFPE,
-                     t_span=t_bounds,
-                     y0=P0,
-                     method='BDF',
-                     t_eval=np.linspace(t_bounds[0], t_bounds[1], 100),
-                     args=(diameter, ambient_temperature, droplet_temperature,
-                            relative_humidity, vent_w, sigma, w_vals))
+class SimulationParameters():
+    def __init__(self, diameter, TG, Td, RH, vent_w, sigma):
+        self.diameter = diameter
+        self.TG = TG
+        self.Td = Td
+        self.RH = RH
+        self.vent_w = vent_w
+        self.sigma = sigma
+        params = funcs.simulation_parameters(ventilation_velocity=self.vent_w)
+        self.pG = params.get('pG')
+        self.RR = params.get('RR')
+        self.W_air = params.get('W_air') * 1e3
+        self.W_h2o = params.get('W_h20') * 1e3
+        self.g = params.get('g')
+        self.x_h2o = RH*funcs.Psat_h2o(TG)/self.pG  # vapor pressure as a fraction of amb pressure [-]
+        self.YG = self.x_h2o*self.W_h2o/(self.x_h2o*self.W_h2o + (1-self.x_h2o)*self.W_air) #[-]
+        self.TR = (2*Td + 1*TG)/3 #[K]
+        # YR = (2*Yseq + 1*YG)/3  # mass fraction [-]
+        self.YR = self.YG  # mass fraction of water in air far away from
+        self.WR = (self.YR/self.W_h2o + (1-self.YR)/self.W_air)**(-1) # [kg/kmol]
 
-    t = soln.t
-    fig, ax = plt.subplots()
-    line, = ax.plot(w_vals, P0)
+        self.rho_g = self.pG / (self.RR/(self.WR/1000) * self.TR)  # ideal gas law
+        self.rhoInf = self.pG / (self.RR/(self.W_air/1000) * self.TG)
+        self.rho_l = funcs.rhoL_h2o(self.Td)
+        self.muG = self.YR*funcs.mu_h2o(self.TR) + (1-self.YR)*funcs.mu_air(self.TR)
+        self.w0 = 0
+
+    def calculate_steady_state_velocity(self, **kwargs):
+        if 'drag_coeff' in kwargs:
+            self.drag = kwargs['drag_coeff']
+            self.steady_state_solution = root(fun=steady_state_velocity_simple, x0=[0],
+                                  args=(self.vent_w, self.drag, self.g),
+                                  method='hybr')
+        else:
+            self.steady_state_solution = root(fun=steady_state_velocity, x0=[0],
+                                  args=(self.rho_g, self.rho_l, self.diameter, self.vent_w, self.muG, self.g),
+                                  method='hybr')
+        self.w_ss = self.steady_state_solution.x[0]
+
+    def assign_w_arr(self, number_of_points):
+        rang = abs(self.w_ss - self.w0)
+        lb = min(self.w_ss, self.w0) - max(0.5*rang, 2*self.sigma)
+        ub = max(self.w_ss, self.w0) + max(0.5*rang, 2*self.sigma)
+        self.w_bounds = [lb, ub]
+        print(self.w_bounds)
+        time.sleep(1)
+        self.w_arr = np.linspace(lb, ub, number_of_points)
+
+if __name__ == '__main__':
+    droplet_temperature = 20 + 273.15 # [K]
+    ambient_temperature = 20 + 273.15 # [K]
+    relative_humidity = 0.6 # [%]
+    vent_w = 0.00 # [m/s]
+    diameter = 1e-5 # [m]
+    sigmas = [0.01, 0.001] # constant randomness in the system
+    drag = 1.5
+    teval=None
+    fig, ax = plt.subplots(figsize=(15,10))
+    data = {}
+    lines = {}
+    for n, sigma in enumerate(sigmas):
+        # simple class to store all the relevant parameters.
+        params = SimulationParameters(diameter=diameter, TG=ambient_temperature, Td=droplet_temperature,
+                                      RH=relative_humidity, vent_w=vent_w, sigma=sigma)
+        params.calculate_steady_state_velocity()
+        params.assign_w_arr(number_of_points=201)
+        # w_vals = np.linspace(w_bounds[0], w_bounds[1], 201)
+        P0 = np.zeros(shape=params.w_arr.shape)
+        w0_idx = np.abs(params.w_arr - params.w0).argmin()
+        # breakpoint()
+        P0[w0_idx] = 1
+        t_bounds = [0, 1.5]
+        soln = solve_ivp(fun=oneDvelocityFPE,
+                         t_span=t_bounds,
+                         y0=P0,
+                         method='BDF',
+                         t_eval=teval,
+                         args=(params,))
+
+        t = soln.t
+        teval = t
+        data[n] = soln.y
+        lines[n], = ax.plot(params.w_arr, P0, label=f'b(w,t)={sigma}')
+    ax.axvline(x=params.w_ss, ls='--', color='k', label='steady_state w: ODE')
+    ax.set_ylim(top=0.2)
+    ax.set_ylabel('P(w,t)')
+    ax.set_xlabel('w')
+    ax.legend(loc='upper left')
+
+    # tables
+    column_headers = ['value']
+    row_headers = ['ODE', 'FPE','a(w,t)', 'time', '$w_v$', 'd']
+    cell_text = [[r'$\frac{\mathrm{d} w}{\mathrm{d} t} = \frac{3 C_D}{d}\left(\frac{\rho_g}{\rho_l}\right)\left|w_v - w\right|(w_v - w) + \left(1- \frac{\rho_g}{\rho_l}\right)g$'],
+                 [r'$\frac{\partial P(w,t)}{\partial t} = -\frac{\partial}{\partial w}\left(a(w,t)P(w,t)\right) + \frac{1}{2}\frac{\partial^2}{\partial w^2}\left(b(w,t)P(w,t)\right)$'],
+                 [r'$\frac{3 C_D}{d}\left(\frac{\rho_g}{\rho_l}\right)\left|w_v - w\right|(w_v - w) + \left(1- \frac{\rho_g}{\rho_l}\right)g$'],
+                 [f't={t[0]:0.5f}s'],
+                 [f'{abs(vent_w)}m/s {"up" if vent_w > 0 else "down"}'],
+                 [r'{:0.2f}$\mu$m'.format(diameter*1e6)],
+                 ]
+    the_table = ax.table(cellText=cell_text,
+                      rowLabels=row_headers,
+                       colLabels=column_headers,
+                      loc='upper right',
+                      cellLoc='left',
+                      )
+    the_table.auto_set_column_width(0)
+    the_table.scale(1, 2)
+    # breakpoint()
 
     def animate(i, ydata):
-        line.set_ydata(ydata[:,i])
-        return line
-    
-    ani = animation.FuncAnimation(fig, animate, 
-                                    fargs=(soln.y,),
-                                    repeat=True)
+        the_table.get_celld()[(4,0)].get_text().set_text(f't={t[i]:0.5f}s')
+        new_objs = [the_table]
+        for n in range(len(sigmas)):
+            lines[n].set_ydata(ydata[n][:,i])
+            new_objs.append(lines[n])
+        return new_objs
+
+    ani = animation.FuncAnimation(fig, animate,
+                                    frames=len(t),
+                                    fargs=(data,),
+                                    interval=10,
+                                    # repeat=True,
+                                    blit=True,)
 
 
-
-
+    writergif = animation.PillowWriter(fps=20) 
+    save = input('Do you want to save the animation? [Y/N]')
+    if 'y' in save.lower():
+        fname = input('File name:')
+        ani.save(f'/home/tdh17/Documents/BOX/NCS Project/models/figures/{fname}.gif', writer=writergif)
     plt.show()
     plt.close()
