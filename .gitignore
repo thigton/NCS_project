@@ -1,7 +1,8 @@
 *.m
-*.pyc
-*zip
 *.pickle
-*.pdf_tex
-*.tex
+*.svg
 *.pdf
+*.pdf-tex
+*.pyc
+.venv/
+*.zip
