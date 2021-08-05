@@ -2,7 +2,7 @@
 *.pickle
 *.svg
 *.pdf
-*.pdf-tex
+*.pdf_tex
 *.pyc
 .venv/
 *.zip
