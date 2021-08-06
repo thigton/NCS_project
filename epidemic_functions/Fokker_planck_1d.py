@@ -39,7 +39,7 @@ def steady_state_velocity_simple(soln, *data):
 
 def oneDvelocityFPE(t, P, params, drag=None):
     print(f'time: {t:0.6f} secs', end='\r')
-    delta_w = params.w_arr[1] - params.w_arr[0]
+    dw = params.dw
     diff_eqs = []
     abs_w = np.abs(params.w_arr-params.vent_w)
     Red = reynolds_number(rho_g=params.rhoInf, diameter=params.diameter, abs_velocity=abs_w, dynam_viscosity=params.muG)
@@ -49,20 +49,21 @@ def oneDvelocityFPE(t, P, params, drag=None):
         a = drag*abs(params.vent_w-params.w_arr)*(params.vent_w-params.w_arr) + params.g
     else:
         a = params.g*(1-params.rho_g/params.rho_l) + 3*Cd*params.rho_g*abs_w*(params.vent_w - params.w_arr)/(params.rho_l*diameter)
-    
+    b = sigma
+    # set value of ghost cells 
+    f0 = 0
+    f1 = 0
+    P[0] = P[1]  - f0*dw / b
+    P[-1] = P[-2] + f1*dw / b
+
     for i in range(len(params.w_arr)):
         # print(i, end='\r')
-        b = sigma
-        if i == 0:
-            dPdw = (a[i+1]*P[i+1] - a[i]*P[i]) / (delta_w) # First order forward difference
-            d2Pdw2 = (b*P[i+2] - 2*b*P[i+1] + b*P[i])/delta_w**2 # second order forward difference
-
-        elif i == len(params.w_arr)-1:
-            dPdw = (a[i]*P[i] - a[i-1]*P[i-1]) / (delta_w) # First order backward difference
-            d2Pdw2 = (b*P[i] - 2*b*P[i-1] + b*P[i-2])/delta_w**2 # second order backward difference
+        if i == 0 or  i == len(params.w_arr)-1:
+            dPdw = 0
+            d2Pdw2 = 0
         else:
-            dPdw = (a[i+1]*P[i+1] - a[i-1]*P[i-1]) / (2*delta_w) # First order central difference
-            d2Pdw2 = (b*P[i+1] - 2*b*P[i] + b*P[i-1])/delta_w**2 # second order central difference
+            dPdw = (a[i+1]*P[i+1] - a[i-1]*P[i-1]) / (2*dw) # First order central difference
+            d2Pdw2 = (b*P[i+1] - 2*b*P[i] + b*P[i-1])/dw**2 # second order central difference
 
         dPdt = -dPdw + 0.5*d2Pdw2
         diff_eqs.append(dPdt)
@@ -111,31 +112,36 @@ class SimulationParameters():
 
     def assign_w_arr(self, number_of_points):
         rang = abs(self.w_ss - self.w0)
-        lb = min(self.w_ss, self.w0) - max(0.5*rang, 2*self.sigma)
-        ub = max(self.w_ss, self.w0) + max(0.5*rang, 2*self.sigma)
+        lb = min(self.w_ss, self.w0) - max(0.75*rang, 3*self.sigma)
+        ub = max(self.w_ss, self.w0) + max(0.75*rang, 3*self.sigma)
         self.w_bounds = [lb, ub]
-        print(self.w_bounds)
+        print(f'velocity range: {self.w_bounds}')
         time.sleep(1)
         self.w_arr = np.linspace(lb, ub, number_of_points)
+        self.dw = self.w_arr[1] - self.w_arr[0]
 
 if __name__ == '__main__':
+    N = 1501
     droplet_temperature = 20 + 273.15 # [K]
     ambient_temperature = 20 + 273.15 # [K]
     relative_humidity = 0.6 # [%]
-    vent_w = 0.00 # [m/s]
+    vent_ws = [-0.01, -0.005, 0.00, 0.01] # [m/s]
     diameter = 1e-5 # [m]
-    sigmas = [0.01, 0.001] # constant randomness in the system
+    # sigmas = [0.01,0.001] # constant randomness in the system
+    sigma = 0.01 # constant randomness in the system
     drag = 1.5
     teval=None
     fig, ax = plt.subplots(figsize=(15,10))
     data = {}
     lines = {}
-    for n, sigma in enumerate(sigmas):
+    sumP = {}
+    method = 'BDF'
+    for n, vent_w in enumerate(vent_ws):
         # simple class to store all the relevant parameters.
         params = SimulationParameters(diameter=diameter, TG=ambient_temperature, Td=droplet_temperature,
                                       RH=relative_humidity, vent_w=vent_w, sigma=sigma)
         params.calculate_steady_state_velocity()
-        params.assign_w_arr(number_of_points=201)
+        params.assign_w_arr(number_of_points=N)
         # w_vals = np.linspace(w_bounds[0], w_bounds[1], 201)
         P0 = np.zeros(shape=params.w_arr.shape)
         w0_idx = np.abs(params.w_arr - params.w0).argmin()
@@ -145,29 +151,32 @@ if __name__ == '__main__':
         soln = solve_ivp(fun=oneDvelocityFPE,
                          t_span=t_bounds,
                          y0=P0,
-                         method='BDF',
+                         method=method,
                          t_eval=teval,
+                        #  t_eval=np.geomspace(1e-6, 1.5, 200),
                          args=(params,))
 
         t = soln.t
         teval = t
         data[n] = soln.y
-        lines[n], = ax.plot(params.w_arr, P0, label=f'b(w,t)={sigma}')
+        sumP[n] = np.trapz(y=data[n],dx=1.0, axis=0)
+        lines[n], = ax.plot(params.w_arr, P0, label=f'$w_v$={vent_w:0.3f}m/s, $\sum$P={sumP[n][0]:0.5f}')
     ax.axvline(x=params.w_ss, ls='--', color='k', label='steady_state w: ODE')
-    ax.set_ylim(top=0.2)
+    ax.set_ylim([0,0.05])
+    ax.set_xlim([-0.02,0.02])
     ax.set_ylabel('P(w,t)')
     ax.set_xlabel('w')
     ax.legend(loc='upper left')
 
     # tables
     column_headers = ['value']
-    row_headers = ['ODE', 'FPE','a(w,t)', 'time', '$w_v$', 'd']
+    row_headers = ['ODE', 'FPE','a(w,t)', 'time', 'd', 'b(w,t)']
     cell_text = [[r'$\frac{\mathrm{d} w}{\mathrm{d} t} = \frac{3 C_D}{d}\left(\frac{\rho_g}{\rho_l}\right)\left|w_v - w\right|(w_v - w) + \left(1- \frac{\rho_g}{\rho_l}\right)g$'],
                  [r'$\frac{\partial P(w,t)}{\partial t} = -\frac{\partial}{\partial w}\left(a(w,t)P(w,t)\right) + \frac{1}{2}\frac{\partial^2}{\partial w^2}\left(b(w,t)P(w,t)\right)$'],
                  [r'$\frac{3 C_D}{d}\left(\frac{\rho_g}{\rho_l}\right)\left|w_v - w\right|(w_v - w) + \left(1- \frac{\rho_g}{\rho_l}\right)g$'],
                  [f't={t[0]:0.5f}s'],
-                 [f'{abs(vent_w)}m/s {"up" if vent_w > 0 else "down"}'],
-                 [r'{:0.2f}$\mu$m'.format(diameter*1e6)],
+                 [f'{diameter*1e6:0.01f}$\mu$m'],
+                 [sigma],
                  ]
     the_table = ax.table(cellText=cell_text,
                       rowLabels=row_headers,
@@ -182,8 +191,9 @@ if __name__ == '__main__':
     def animate(i, ydata):
         the_table.get_celld()[(4,0)].get_text().set_text(f't={t[i]:0.5f}s')
         new_objs = [the_table]
-        for n in range(len(sigmas)):
+        for n in range(len(vent_ws)):
             lines[n].set_ydata(ydata[n][:,i])
+            lines[n].set_label(f'$w_v$={vent_w:0.3f}m/s, $\sum P={sumP[n][i]:0.5f}')
             new_objs.append(lines[n])
         return new_objs
 
