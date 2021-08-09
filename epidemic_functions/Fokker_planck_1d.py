@@ -49,13 +49,13 @@ def oneDvelocityFPE(t, P, params, drag=None):
         a = drag*abs(params.vent_w-params.w_arr)*(params.vent_w-params.w_arr) + params.g
     else:
         a = params.g*(1-params.rho_g/params.rho_l) + 3*Cd*params.rho_g*abs_w*(params.vent_w - params.w_arr)/(params.rho_l*diameter)
+    # b = sigma + np.abs(params.w_arr)
     b = sigma
     # set value of ghost cells 
     f0 = 0
     f1 = 0
     P[0] = P[1]  - f0*dw / b
     P[-1] = P[-2] + f1*dw / b
-
     for i in range(len(params.w_arr)):
         # print(i, end='\r')
         if i == 0 or  i == len(params.w_arr)-1:
@@ -112,8 +112,8 @@ class SimulationParameters():
 
     def assign_w_arr(self, number_of_points):
         rang = abs(self.w_ss - self.w0)
-        lb = min(self.w_ss, self.w0) - max(0.75*rang, 3*self.sigma)
-        ub = max(self.w_ss, self.w0) + max(0.75*rang, 3*self.sigma)
+        lb = min(self.w_ss, self.w0) - max(0.75*rang, 2*self.sigma)
+        ub = max(self.w_ss, self.w0) + max(0.75*rang, 2*self.sigma)
         self.w_bounds = [lb, ub]
         print(f'velocity range: {self.w_bounds}')
         time.sleep(1)
@@ -121,7 +121,7 @@ class SimulationParameters():
         self.dw = self.w_arr[1] - self.w_arr[0]
 
 if __name__ == '__main__':
-    N = 1501
+    N = 2001
     droplet_temperature = 20 + 273.15 # [K]
     ambient_temperature = 20 + 273.15 # [K]
     relative_humidity = 0.6 # [%]
@@ -142,10 +142,8 @@ if __name__ == '__main__':
                                       RH=relative_humidity, vent_w=vent_w, sigma=sigma)
         params.calculate_steady_state_velocity()
         params.assign_w_arr(number_of_points=N)
-        # w_vals = np.linspace(w_bounds[0], w_bounds[1], 201)
         P0 = np.zeros(shape=params.w_arr.shape)
         w0_idx = np.abs(params.w_arr - params.w0).argmin()
-        # breakpoint()
         P0[w0_idx] = 1
         t_bounds = [0, 1.5]
         soln = solve_ivp(fun=oneDvelocityFPE,
@@ -160,10 +158,10 @@ if __name__ == '__main__':
         teval = t
         data[n] = soln.y
         sumP[n] = np.trapz(y=data[n],dx=1.0, axis=0)
-        lines[n], = ax.plot(params.w_arr, P0, label=f'$w_v$={vent_w:0.3f}m/s, $\sum$P={sumP[n][0]:0.5f}')
-    ax.axvline(x=params.w_ss, ls='--', color='k', label='steady_state w: ODE')
+        lines[n], = ax.plot(params.w_arr, P0, color=f'C{n}', label=f'$w_v$={vent_w:0.3f}m/s, $\sum$P={sumP[n][0]:0.5f}')
+        ax.axvline(x=params.w_ss, ls='--', color=f'C{n}', label='steady_state w: ODE')
     ax.set_ylim([0,0.05])
-    ax.set_xlim([-0.02,0.02])
+    ax.set_xlim([-0.025,0.025])
     ax.set_ylabel('P(w,t)')
     ax.set_xlabel('w')
     ax.legend(loc='upper left')
