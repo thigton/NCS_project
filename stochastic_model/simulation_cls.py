@@ -1,4 +1,7 @@
 from stocastic_model_cls import StocasticModel
+from datetime import datetime
+
+
 
 class Simulation(StocasticModel):
 
