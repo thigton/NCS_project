@@ -3,11 +3,19 @@ import re
 import subprocess
 from io import StringIO
 
-def raw_txt_to_df(raw_txt):
+def raw_txt_to_df(raw_txt, first_col_name='P#'):
     # raw_txt = [x[:-1] for x in raw_txt] # remove \n from end of each line.
-    raw_txt = ['{}\n'.format(re.sub(r"\s+", "\t", x)) for x in raw_txt]
-    raw_txt = ''.join(raw_txt)
-    df = pd.read_csv(StringIO(raw_txt), sep='\t', header=0)
+    raw_txt = [x.strip() for x in raw_txt]
+    # raw_txt[:] = [re.sub(" +", "\t", x) for x in raw_txt]
+    first_col_index = raw_txt[0].find(first_col_name)
+    raw_txt[0] = raw_txt[0][first_col_index:]
+    # breakpoint()
+    raw_txt = [' '.join(x.split()) for x in raw_txt]
+    raw_txt = [x.split(' ') for x in raw_txt]
+
+    # raw_txt[:] = [x for x in raw_txt if x]
+    # breakpoint()
+    df = pd.DataFrame.from_records(raw_txt[1:])#, columns=raw_txt[0])
     breakpoint()
 
 
@@ -92,5 +100,5 @@ class ContamModel():
         pass
 
 if __name__ == '__main__':
-    prj = '/home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/My_first_attemt.prj'
+    prj = '/Users/Tom/Box/NCS Project/models/stochastic_model/contam_files/My_first_attemt.prj'
     x = ContamModel(prj_file_loc=prj)
