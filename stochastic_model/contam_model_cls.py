@@ -29,17 +29,25 @@ class ContamModel():
         self.contam_dir = contam_dir
         self.project_name = project_name
         self.simread_file_name = simread_file_name
+
         self.import_prj_file()
-        self.get_flow_paths()
-        # self.import_flow_rates()
+        self.parse_flow_paths()
+        self.parse_zones()
+        self.parse_airflow_path_types()
+        self.parse_environment_conditions()
 
 
-    def run_contamX(self):
+    def run_simulation(self):
+        self.__update_prj_file()
+        self.__run_contamX()
+        self.__run_simread()
+
+    def __run_contamX(self):
         output = subprocess.run([f"{self.contam_exe_dir}contamx3", f"{self.contam_dir}{self.project_name}.prj"],
                                 stderr=subprocess.STDOUT,
                                 stdout=subprocess.PIPE)
         if output.returncode ==0:
-            print('ContamX run successfully!')
+            print('ContamX ran successfully!')
             for line in output.stdout.decode('utf-8').split('\n'):
                 print(line)
         else:
@@ -48,7 +56,7 @@ class ContamModel():
             exit()
 
 
-    def run_simread(self):
+    def __run_simread(self):
         if not self.simread_file_name:
             print('No simread parameter file linked. Creating default file simread_parameters.txt')
             self.simread_file_name = 'simread_parameters'
@@ -60,7 +68,7 @@ class ContamModel():
                                 stderr=subprocess.STDOUT,
                                 stdout=subprocess.PIPE)
         if output.returncode==0:
-            print('simread run successfully!')
+            print('simread ran successfully!')
             for line in output.stdout.decode('utf-8').split('\n'):
                 print(line)
         else:
@@ -77,37 +85,63 @@ class ContamModel():
         try:
             with open(f'{self.contam_dir}{self.project_name}.prj', 'r') as f:
                 lines = f.readlines()
-                # for i, line in enumerate(lines):
-                #     print(f'{i}:', line)
             self.prj_file = lines
         except FileNotFoundError:
             print('.prj file is not found. Please check that the directory and file locations are correct')
 
-    def update_prj_file(self):
-        pass
+    def __save_prj_file(self):
+        with open(f'{self.contam_dir}{self.project_name}.prj', 'w') as f:
+            f.writelines(self.prj_file)
 
-    def get_flow_paths(self):
+    def __update_prj_file(self):
+        # update flow paths, zones, airflow_path_types and environmental conditions
+        # flow paths
+        self.flow_paths.update_raw_data()
+        self.prj_file[self.flow_paths.search_string_idx+2:self.flow_paths.end_idx] = self.flow_paths.raw_data
+        # zones
+        self.zones.update_raw_data()
+        self.prj_file[self.zones.search_string_idx+2:self.zones.end_idx] = self.zones.raw_data
+        # airflow path types
+        self.airflow_path_types.update_raw_data()
+
+        self.prj_file[self.airflow_path_types.search_string_idx+1:self.airflow_path_types.end_idx] = self.airflow_path_types.raw_data
+        # environment conditions
+        self.environment_conditions.update_raw_data()
+
+        self.prj_file[self.environment_conditions.search_string_idx+1] = self.environment_conditions.raw_data
+        # save
+        self.__save_prj_file()
+    def parse_flow_paths(self):
         self.flow_paths = ContamPrjSnippets(search_string=".*flow paths:.*\n",
+                                            first_column_name='P#',
+                                            snippet_type='table',
                                             prj_file=self.prj_file)
-
     def set_flow_paths(self, paths, values):
         pass
 
-    def get_zones(self):
+    def parse_zones(self):
         self.zones = ContamPrjSnippets(search_string=".*zones:.*\n",
+                                            first_column_name='Z#',
+                                            snippet_type='table',
                                             prj_file=self.prj_file)
 
     def set_zone_temperature(self, zone, value):
         pass
 
-    def get_airflow_path_types(self):
+    def parse_airflow_path_types(self):
         self.airflow_path_types = ContamPrjSnippets(search_string=".*flow elements.*\n",
+                                                    snippet_type='flow_elements',
                                                     prj_file=self.prj_file)
 
-    def get_environmental_conditions(self):
-        pass
 
-    def set_environmental_conditions(self, conditions,values):
+
+    def parse_environment_conditions(self):
+        self.environment_conditions = ContamPrjSnippets(search_string=".*!\s+Ta\s+Pb\s+Ws.*\n",
+                                                    first_column_name='Ta',
+                                                    snippet_type='environment_conditions',
+                                                    prj_file=self.prj_file)
+
+    def set_environment_conditions(self, conditions,values):
         pass
 
 
@@ -128,8 +162,9 @@ class ContamModel():
 
 if __name__ == '__main__':
     contam_exe_dir = '/home/tdh17/contam-x-3.4.0.0-Linux-64bit/'
-    prj_dir = '/home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/'
+    prj_dir = '/Users/Tom/Box/NCS Project/models/stochastic_model/contam_files/'
     name = 'school_corridor'
     x = ContamModel(contam_exe_dir=contam_exe_dir,
                     contam_dir=prj_dir,
                     project_name=name)
+    x.run_simulation()
