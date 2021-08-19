@@ -1,8 +1,8 @@
 import re
 import pandas as pd
 import os
-import numpy as np
-from pandas._config.config import describe_option
+
+
 
 class ContamPrjSnippets():
     """Data class handles the different parts of the contam .prj files
@@ -130,15 +130,6 @@ class ContamPrjSnippets():
             # change to a list of strings, ASSUMPTION that the number of whitespaces between each value doesn't matter
             self.raw_data = [f"{'  '.join([str(inner) for inner in outer if str(inner) != 'nan'])}\n" for outer in values]
 
-
-    @property
-    def column_dtypes(self):
-        return {
-            'paths': ['lam', 'turb','expt','dTmin','ht','wd','cd','u_T','u_H','u_W'],
-            'zones': ['lam', 'turb','expt','dH', 'ht', 'wd','cd','u_H','u_W'],
-            'flow_elements': ['lam', 'turb','expt','area', 'dia', 'coef','Re','u_A','u_D'],
-            'environment_conditions': ['lam', 'turb','expt','area', 'dia', 'coef','Re','u_A','u_D'],
-        }
 
     @property
     def flow_element_value_dict(self):
