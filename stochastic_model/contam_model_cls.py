@@ -103,18 +103,18 @@ class ContamModel():
         self.prj_file[self.zones.search_string_idx+2:self.zones.end_idx] = self.zones.raw_data
         # airflow path types
         self.airflow_path_types.update_raw_data()
-
         self.prj_file[self.airflow_path_types.search_string_idx+1:self.airflow_path_types.end_idx] = self.airflow_path_types.raw_data
         # environment conditions
         self.environment_conditions.update_raw_data()
-
-        self.prj_file[self.environment_conditions.search_string_idx+1] = self.environment_conditions.raw_data
+        self.prj_file[self.environment_conditions.search_string_idx+1] = self.environment_conditions.raw_data[0][:-1] + ' ! steady simulation \n'
         # save
         self.__save_prj_file()
+
+        
     def parse_flow_paths(self):
         self.flow_paths = ContamPrjSnippets(search_string=".*flow paths:.*\n",
                                             first_column_name='P#',
-                                            snippet_type='table',
+                                            snippet_type='paths',
                                             prj_file=self.prj_file)
     def set_flow_paths(self, paths, values):
         pass
@@ -122,7 +122,7 @@ class ContamModel():
     def parse_zones(self):
         self.zones = ContamPrjSnippets(search_string=".*zones:.*\n",
                                             first_column_name='Z#',
-                                            snippet_type='table',
+                                            snippet_type='zones',
                                             prj_file=self.prj_file)
 
     def set_zone_temperature(self, zone, value):
@@ -162,7 +162,7 @@ class ContamModel():
 
 if __name__ == '__main__':
     contam_exe_dir = '/home/tdh17/contam-x-3.4.0.0-Linux-64bit/'
-    prj_dir = '/Users/Tom/Box/NCS Project/models/stochastic_model/contam_files/'
+    prj_dir = '/home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/'
     name = 'school_corridor'
     x = ContamModel(contam_exe_dir=contam_exe_dir,
                     contam_dir=prj_dir,

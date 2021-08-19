@@ -21,9 +21,9 @@ class ContamPrjSnippets():
         self.first_column_name = first_column_name
         self.snippet_type = snippet_type
         self.__find_raw_data(prj_file=prj_file)
-        if self.snippet_type not in ['table', 'flow_elements', 'environment_conditions']:
-            raise ValueError(f"{self.snippet_type} is not an option for snippet type, options are ['table', 'flow_elements', 'environment_conditions']")
-        elif self.snippet_type in ['table', 'environment_conditions']:
+        if self.snippet_type not in ['paths','zones', 'flow_elements', 'environment_conditions']:
+            raise ValueError(f"{self.snippet_type} is not an option for snippet type, options are ['paths','zones', 'flow_elements', 'environment_conditions']")
+        elif self.snippet_type in ['paths','zones', 'environment_conditions']:
             self.df = self.__get_table_df()
         elif self.snippet_type == 'flow_elements':
             self.df = self.__get_flow_element_df()
@@ -42,7 +42,7 @@ class ContamPrjSnippets():
             elif found and re.search("-999\n", line):
                 self.end_idx = i
                 break
-        if self.snippet_type == 'table':
+        if self.snippet_type in  ['paths', 'zones']:
             self.column_headers = prj_file[self.search_string_idx+1]
             self.raw_data = prj_file[self.search_string_idx+2:self.end_idx]
             self.number_of_columns = len(self.raw_data[0].split())
@@ -67,6 +67,7 @@ class ContamPrjSnippets():
                         delim_whitespace=True,
                         comment='!',
                         index_col=False,
+                        dtype=str,
                         names=self.__prep_df_column_names()
                         )
 
@@ -100,24 +101,10 @@ class ContamPrjSnippets():
             except KeyError:
                 breakpoint()
             series = pd.Series(data[i].split() + [data[i+1]] + data[i+2].split(),
-                               index=col_names,
+                               index=col_names, dtype=str,
             )
             df = pd.concat([df, series], axis=1)
         return df.T
-
-    @property
-    def flow_element_value_dict(self):
-        """For the flow elements values are given without meaning on .prj,
-        for each flow type the meaning of each value is given in order
-
-        Returns:
-            dict: flow element parameters.
-        """
-        return {
-            'dor_door': ['lam', 'turb','expt','dTmin','ht','wd','cd','u_T','u_H','u_W'],
-            'dor_pl2': ['lam', 'turb','expt','dH', 'ht', 'wd','cd','u_H','u_W'],
-            'plr_orfc': ['lam', 'turb','expt','area', 'dia', 'coef','Re','u_A','u_D']
-        }
 
 
     def update_raw_data(self):
@@ -137,9 +124,32 @@ class ContamPrjSnippets():
             self.raw_data = raw_data
         else:
             # change the values which have become floats back into integers
-            values = self.df.select_dtypes(include=np.number).applymap('{:,g}'.format)
+            # values = self.df.select_dtypes(include=np.number).applymap('{:g}'.format)0
             values = self.df.values.tolist()
+
             # change to a list of strings, ASSUMPTION that the number of whitespaces between each value doesn't matter
-            self.raw_data = [f"  {'  '.join([str(inner) for inner in outer if str(inner) != 'nan'])}\n" for outer in values]
+            self.raw_data = [f"{'  '.join([str(inner) for inner in outer if str(inner) != 'nan'])}\n" for outer in values]
 
 
+    @property
+    def column_dtypes(self):
+        return {
+            'paths': ['lam', 'turb','expt','dTmin','ht','wd','cd','u_T','u_H','u_W'],
+            'zones': ['lam', 'turb','expt','dH', 'ht', 'wd','cd','u_H','u_W'],
+            'flow_elements': ['lam', 'turb','expt','area', 'dia', 'coef','Re','u_A','u_D'],
+            'environment_conditions': ['lam', 'turb','expt','area', 'dia', 'coef','Re','u_A','u_D'],
+        }
+
+    @property
+    def flow_element_value_dict(self):
+        """For the flow elements values are given without meaning on .prj,
+        for each flow type the meaning of each value is given in order
+
+        Returns:
+            dict: flow element parameters.
+        """
+        return {
+            'dor_door': ['lam', 'turb','expt','dTmin','ht','wd','cd','u_T','u_H','u_W'],
+            'dor_pl2': ['lam', 'turb','expt','dH', 'ht', 'wd','cd','u_H','u_W'],
+            'plr_orfc': ['lam', 'turb','expt','area', 'dia', 'coef','Re','u_A','u_D'],
+        }
