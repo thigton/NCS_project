@@ -1,38 +1,46 @@
 import os
+from datetime import datetime, timedelta
+import pandas as pd
+from contam_model_cls import ContamModel
 from datetime import datetime
 
-import pandas as pd
-
-from weather_cls import Weather
-from contam_model_cls import ContamModel
-
+from simulation_cls import Simulation
 
 class StocasticModel():
-    def __init__(self, weather, **kwargs):
+    def __init__(self, weather, contam_details, simulation_constants):
         self.weather = weather
-        self.duration = kwargs['duration'] if 'duration' in kwargs else float(input('Simulation length in days?')) * 24
-        self.mask_efficiency = kwargs['mask_efficiency'] if 'mask_efficiency' in kwargs else float(input('What is the assumed mask efficiency? [%]')) / 100
-        self.lambda_home = kwargs['lambda_home'] if 'lambda_home' in kwargs else float(input('What is the assumed home infectivity rate? [hr^-1]'))
+        self.contam_details = contam_details
+        self.consts = simulation_constants
 
-    def run(self, numberOfSimulations):
-        pass
+
+
+        # init contam model
+        self.contam_model = ContamModel(contam_exe_dir=self.contam_details['exe_dir'],
+                contam_dir=self.contam_details['prj_dir'],
+                project_name=self.contam_details['name'])
+        # set weather params in model
+        self.contam_model.set_environment_conditions(condition='wind_direction', value=self.weather.wind_direction,  units='km/hr')
+        self.contam_model.set_environment_conditions(condition='wind_speed', value=self.weather.wind_speed,  units='km/hr')
+        self.contam_model.set_environment_conditions(condition='ambient_temp', value=self.weather.ambient_temp,  units='C')
+        # run contam simulation
+        self.contam_model.run_simulation()
+
+
+    def run(self):
+        for run in range(self.consts['no_of_simulations']):
+            if run % 10 == 0:
+                print(f'{run/self.consts["no_of_simulations"]:0.2%} complete')
+            sim = Simulation(sim_id=run,
+                             simulation_constants = self.consts,
+                             contam_model=self.contam_model,
+                            )
+            sim.run()
+            sim.plot_SIR()
+            breakpoint()
 
     def storeSIR(self):
         pass
 
-    def getVentilationDataFromCSV(self):
-        pass
-
-    def getVentilationDataFromContamTxt(self):
-        folder = '/home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_result_txt_files'
-        fnames = os.listdir(folder)
-        for file in fnames:
-            df = pd.read_table(f'{folder}/{file}', encoding="latin1", delimiter = "\t", header=13)
-            breakpoint()
-
-
-    def plot(self):
-        pass
 
 
 
@@ -40,15 +48,4 @@ class StocasticModel():
 
 
 if __name__ == '__main__':
-    contam_exe_dir = '/home/tdh17/contam-x-3.4.0.0-Linux-64bit/'
-    prj_dir = '/home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/'
-    name = 'school_corridor'
-
-    weather = Weather(windSpeed=15, ambientTemperature=10)
-    contamModel = ContamModel(contam_exe_dir=contam_exe_dir,
-                              contam_dir=prj_dir,
-                              project_name=name)
-
-
-    model = StocasticModel(weather=weather, duration=5)
-    model.getVentilationDataFromContamTxt()
+    pass

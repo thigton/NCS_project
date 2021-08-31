@@ -1,6 +1,8 @@
+from os import POSIX_FADV_NOREUSE
 import pandas as pd
 import subprocess
-
+import numpy as np
+import itertools
 from contam_prj_table_cls import ContamPrjSnippets
 
 
@@ -34,11 +36,20 @@ class ContamModel():
         self.__parse_airflow_path_types()
         self.__parse_environment_conditions()
 
-
+    def __repr__(self):
+        return f'''Simulation details:- \n
+Ambient temperature : {self.environment_conditions.df["Ta"].values[0]}K
+Wind speed : {self.environment_conditions.df["Ws"].values[0]}m/s
+Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
+          '''
     def run_simulation(self):
+        print(self)
         self.__update_prj_file()
         self.__run_contamX()
         self.__run_simread()
+        self.__import_flow_rates()
+        self.ventilation_matrix()
+        
 
     def __run_contamX(self):
         output = subprocess.run([f"{self.contam_exe_dir}contamx3", f"{self.contam_dir}{self.project_name}.prj"],
@@ -250,7 +261,7 @@ class ContamModel():
         self.environment_conditions.df.loc[0, search_on[condition][0]] = search_on[condition][1]
 
 
-    def import_flow_rates(self):
+    def __import_flow_rates(self):
         """
         Understanding the volume flux direction.
          - The sign of the flux is from zone n# to m# on the flow paths table from the .prj file.
@@ -258,8 +269,51 @@ class ContamModel():
         """
         self.flow_rate_df = pd.read_csv(f'{self.contam_dir}{self.project_name}.lfr', sep='\t', header=0, index_col=2)
 
-    def extract_ventilation_matrix(self):
-        pass
+    def ventilation_matrix(self):
+        """Produces a matrix of the venitlation rates as per equation 3.8
+        Noakes and Sleigh (2009). 
+        NOTE: The data manipulation here is pretty messy combining the flow paths df and the
+        flow rate df. A few of the matrices have been checked but more checking needed.
+        NOTE: This function relies on the zone numbers being sequential starting at 1
+        """
+        def choose_flow_rates(row, zone, into_zone=True):
+            if (into_zone and row['m#'] == zone) or (not into_zone and row['n#'] == zone):
+                # take the positive numbers
+                return abs(row[['F0 (kg/s)', 'F1 (kg/s)']].max())
+            else:
+                # take the negative numnbers
+                return abs(row[['F0 (kg/s)', 'F1 (kg/s)']].min())
+
+        no_zones = len(self.zones.df)
+        self.vent_mat = np.empty(shape=(no_zones, no_zones))
+        for i, j in itertools.product(range(no_zones), repeat=2):
+            if i == j:
+                # on the diagonal sum all flow rates out of the row zone (i)
+                paths = self.search_flow_paths(zone_row=str(i+1))
+                into_zone = False
+            else:
+                paths = self.search_flow_paths(zone_row=str(i+1), zone_col=str(j+1))
+                into_zone = True
+            if isinstance(paths, float):
+                self.vent_mat[i, j] = paths
+                continue
+            flow_rates = paths.apply(lambda x: choose_flow_rates(x, zone=str(i+1), into_zone=into_zone), axis=1)
+            self.vent_mat[i, j] = 0 - flow_rates.sum() if i == j else flow_rates.sum()
+        np.savetxt(f"{self.contam_dir}vent_mat_check.csv", self.vent_mat, delimiter=",")
+        self.vent_mat = kilogramPerSecondToMetresCubedPerHour(self.vent_mat)
+        print('Ventilation matrix produced...')
+    
+    def search_flow_paths(self, zone_row, zone_col=None):
+        if zone_col:
+            paths = self.flow_paths.df.loc[((self.flow_paths.df['n#']==zone_row) & (self.flow_paths.df['m#']==zone_col)) | ((self.flow_paths.df['m#']==zone_row) & (self.flow_paths.df['n#']==zone_col)),:].copy()
+        else:
+            paths = self.flow_paths.df.loc[(self.flow_paths.df['n#']==zone_row) | (self.flow_paths.df['m#']==zone_row),:].copy()
+        if len(paths) == 0:
+            return 0.0
+        else:
+            paths['merge P#'] = paths['P#'].apply(lambda x: int(x))
+            return paths.merge(right=self.flow_rate_df, right_index=True, left_on='merge P#')[['P#', 'n#','m#','F0 (kg/s)','F1 (kg/s)']]
+    
 
 def celciusToKelvin(T):
     return T + 273.15
@@ -270,17 +324,10 @@ def fahrenheitToKelvin(T):
 def kilometresPerHourToMetresPerSecond(v):
     return v / 3.6
 
+def kilogramPerSecondToMetresCubedPerHour(Q):
+    air_density = 1.204
+    return Q / air_density * 60**2
 
 
 if __name__ == '__main__':
-    contam_exe_dir = '/home/tdh17/contam-x-3.4.0.0-Linux-64bit/'
-    prj_dir = '/Users/Tom/Box/NCS Project/models/stochastic_model/contam_files/'
-    name = 'school_corridor'
-    x = ContamModel(contam_exe_dir=contam_exe_dir,
-                    contam_dir=prj_dir,
-                    project_name=name)
-    # x.set_zone_temperature(zone='6', value=19.0)
-    x.set_environment_conditions(condition='ambient_temp', value=12.0,  units='C')
-    # x.set_flow_paths(path=1, param='type', value=4)
-    x.run_simulation()
-    breakpoint()
+    pass
