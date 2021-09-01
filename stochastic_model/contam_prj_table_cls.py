@@ -66,7 +66,8 @@ class ContamPrjSnippets():
         """returns some formatted headers for the dataframe
         NOTE: IMPORTANT this method means that some column names
         are assigned to the wrong column. This  generally only affects columns
-        towards the end about units and cfd when parsing the . Needs updating if columns are required!
+        towards the end about units and cfd when parsing the zones and flow paths tables.
+        Needs updating if columns are required!
 
         Returns:
             list<str>: list of column headers
