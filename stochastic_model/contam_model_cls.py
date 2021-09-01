@@ -3,11 +3,7 @@ import pandas as pd
 import subprocess
 import numpy as np
 import itertools
-from contam_prj_table_cls import ContamPrjSnippets
-
-
-
-
+from contam_prj_table_cls import ContamPrjSnippets, ContamPrjSnippetsEnvironmentConditions, ContamPrjSnippetsFlowElements
 
 
 
@@ -36,12 +32,15 @@ class ContamModel():
         self.__parse_airflow_path_types()
         self.__parse_environment_conditions()
 
+
     def __repr__(self):
         return f'''Simulation details:- \n
 Ambient temperature : {self.environment_conditions.df["Ta"].values[0]}K
 Wind speed : {self.environment_conditions.df["Ws"].values[0]}m/s
 Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
           '''
+
+
     def run_simulation(self):
         print(self)
         self.__update_prj_file()
@@ -66,6 +65,8 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
 
 
     def __run_simread(self):
+        """run simread to get the .lfr file output.
+        """
         if not self.simread_file_name:
             print('No simread parameter file linked. Creating default file simread_parameters.txt')
             self.simread_file_name = 'simread_parameters'
@@ -85,6 +86,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             print(output.stderr)
             exit()
 
+
     def __import_prj_file(self):
         """imports the current .prj file at prj_file_loc
         """
@@ -95,11 +97,13 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         except FileNotFoundError:
             print('.prj file is not found. Please check that the directory and file locations are correct')
 
+
     def __save_prj_file(self):
         """save the current version of the prj file
         """
         with open(f'{self.contam_dir}{self.project_name}.prj', 'w') as f:
             f.writelines(self.prj_file)
+
 
     def __update_prj_file(self):
         """update the raw prj file with the latest versions of the different dataframes
@@ -119,39 +123,33 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         # save
         self.__save_prj_file()
 
-        
+
     def __parse_flow_paths(self):
         """Extracts the flow path type from the .prj file
         """
         self.flow_paths = ContamPrjSnippets(search_string=".*flow paths:.*\n",
                                             first_column_name='P#',
-                                            snippet_type='paths',
                                             prj_file=self.prj_file)
 
 
-    def set_flow_paths(self, path, param, value):
+    def set_flow_path(self, path, param, value):
         """can change the relative height of an opening and the type of the opening.
+        The opening type must already be defined within the .prj file.
         NOTE: when changing the height there is not check to see whether this is physically reasonable.
         i.e. the top of the opening is above the defined room height.
         NOTE: This is a bit of a messy method; worth splitting if developing further.
+        TODO: create your own error classes, some are used inappropriately here.
 
         Args:
             path (int or string of int): path number
             param (string): parameter to change options: ['type', 'opening_height']
             value (float or int): new value, data type depends on param 'type': int, 'opening_height': float
 
-        Raises:
-            TypeError: [description]
-            ValueError: [description]
-            TypeError: [description]
-            TypeError: [description]
-            ValueError: [description]
-            KeyError: [description]
         """
         if not isinstance(path, int) or not str(path).isnumeric():
             raise TypeError('Path should be referenced by either an integer or a string of an integer')
         elif param not in ['type', 'opening_height']:
-            raise ValueError('Only param type or opening_height accepted')
+            raise ValueError('Only type or opening_height accepted in the param argument')
         elif param == 'opening_height' and not isinstance(value, float):
             raise TypeError('value should be a float if changing the opening height')
         elif param == 'type' and not isinstance(value, int):
@@ -161,6 +159,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         elif len(self.flow_paths.df.loc[self.flow_paths.df['P#'] == str(path), 'P#']) == 0:
             raise KeyError('Path number not found. Either check for correct reference or create the path in CONTAM directly, and re-initialise.')
         
+        # relating the param terms used to the df column names
         search_on = {'type': ['e#', str(value)],
                      'opening_height': ['relHt', f'{value:0.3f}'],
                      }
@@ -171,11 +170,13 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         """
         self.zones = ContamPrjSnippets(search_string=".*zones:.*\n",
                                             first_column_name='Z#',
-                                            snippet_type='zones',
                                             prj_file=self.prj_file)
 
     def set_zone_temperature(self, zone, value, units='C'):
         """change the temperature of any zone in the dataframe
+        TODO: For the units I have just used the default units set for my contam file.
+        This must appear somewhere in the .prj file and should be checked to ensure
+        changing to the right units.
 
         Args:
             zone (int, string): zone can be identified by either its number as an integer or a string. Or its name.
@@ -209,8 +210,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
     def __parse_airflow_path_types(self):
         """Extracts the airflow path types from the .prj file
         """
-        self.airflow_path_types = ContamPrjSnippets(search_string=".*flow elements.*\n",
-                                                    snippet_type='flow_elements',
+        self.airflow_path_types = ContamPrjSnippetsFlowElements(search_string=".*flow elements.*\n",
                                                     prj_file=self.prj_file)
 
 
@@ -218,11 +218,10 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
     def __parse_environment_conditions(self):
         """Extracts the environmental conditions from the .prj file
         """
-        self.environment_conditions = ContamPrjSnippets(search_string=".*!\s+Ta\s+Pb\s+Ws.*\n",
+        self.environment_conditions = ContamPrjSnippetsEnvironmentConditions(search_string=".*!\s+Ta\s+Pb\s+Ws.*\n",
                                                     first_column_name='Ta',
-                                                    snippet_type='environment_conditions',
                                                     prj_file=self.prj_file)
-
+        breakpoint()
     def set_environment_conditions(self, condition, value, units='km/hr'):
         """change either the wind speed, direction or ambient temperature
 
@@ -232,7 +231,11 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             units (str, optional): units of value.
                                    wind options ['km/hr', 'm/s']
                                   temp options ['C', 'F', 'K']
-                                  Defaults to 'km/hr'.
+                                  Defaults to 'km/hr' and 'K'.
+            NOTE: units are converted to the default value of the particular
+            CONTAM file I am using, this must be referenced somewhere in the
+            .prj file, so the correct units can be converted to regardless of the
+            CONTAM file settings.
 
         Raises:
             TypeError: value must be a float
@@ -269,12 +272,15 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         """
         self.flow_rate_df = pd.read_csv(f'{self.contam_dir}{self.project_name}.lfr', sep='\t', header=0, index_col=2)
 
+
     def ventilation_matrix(self):
         """Produces a matrix of the venitlation rates as per equation 3.8
         Noakes and Sleigh (2009). 
         NOTE: The data manipulation here is pretty messy combining the flow paths df and the
         flow rate df. A few of the matrices have been checked but more checking needed.
-        NOTE: This function relies on the zone numbers being sequential starting at 1
+        NOTE: This function relies on the zone numbers being sequential starting at 1.
+        NOTE: I am only using the single opening - two way flow model on CONTAM. Need to check
+        if there are any other bugs if different opening types are used.
         """
         def choose_flow_rates(row, zone, into_zone=True):
             if (into_zone and row['m#'] == zone) or (not into_zone and row['n#'] == zone):
@@ -330,4 +336,10 @@ def kilogramPerSecondToMetresCubedPerHour(Q):
 
 
 if __name__ == '__main__':
-    pass
+    contam_model_details = {'exe_dir': '/home/tdh17/contam-x-3.4.0.0-Linux-64bit/',
+                        'prj_dir': '/home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/',
+                        'name': 'school_corridor'}
+
+    contam_model = ContamModel(contam_exe_dir=contam_model_details['exe_dir'],
+                contam_dir=contam_model_details['prj_dir'],
+                project_name=contam_model_details['name'])
