@@ -1,18 +1,17 @@
-Program:  C:\Program Files (x86)\NIST\CONTAM 3.4.0.1\CONTAMX3.exe
-  Version:  3.4.0.0 release 32 bit
-  Compiler: Visual C++ 1927
-  Created:  Thu Jan  7 21:41:58 2021
-Project (_file_name):  C:\Users\tdh17\Desktop\CONTAM\My_first_attemt.prj
-cwd: C:\Users\tdh17\Desktop\CONTAM
-prj arg = C:\Users\tdh17\Desktop\CONTAM\My_first_attemt.prj
-_pdrive C:, _pdir \Users\tdh17\Desktop\CONTAM\, _prjname My_first_attemt, _pext .prj
-  Updated:  Thu Aug 19 13:44:51 2021
-Calling arguments (3):
-	argv[0] = C:\Program Files (x86)\NIST\CONTAM 3.4.0.1\CONTAMX3.exe
-	argv[1] = C:\Users\tdh17\Desktop\CONTAM\My_first_attemt.prj
-	argv[2] = -d
+Program:  /home/tdh17/contam-x-3.4.0.0-Linux-64bit/contamx3
+  Version:  3.4.0.0 release 64 bit
+  Compiler: GCC 70500
+Project (_file_name):  /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/school_corridor.prj
+cwd: /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model
+prj arg = /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/school_corridor.prj
+_pdrive , _pdir /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/, _prjname school_corridor, _pext .prj
 
-Reading project file: C:\Users\tdh17\Desktop\CONTAM\My_first_attemt.prj
+Calling arguments (2):
+	argv[0] = /home/tdh17/contam-x-3.4.0.0-Linux-64bit/contamx3
+	argv[1] = /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/school_corridor.prj
+Running ContamX 3.4.0.0 on /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/school_corridor.prj
+
+Reading project file: /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/school_corridor.prj
 Run Control section read successfully.
 Speices section read successfully.
 Level section read successfully.
@@ -43,7 +42,7 @@ Creating Envelope path lists:
       network # 0 - jctns:
 
   12 envelope paths|terminals|leaks for CSM/CEX
-Read PRJ : 46288 bytes allocated, 13816 freed, 32472 net
+Read PRJ : 46580 bytes allocated, 14052 freed, 32528 net
 Number of --
       contaminants:    1
      day schedules:    3
@@ -119,25 +118,25 @@ Airflow calculation data:
    11 -   20:   11p   12p   13p   14p   15p   16p   17p   18p   19p   20p
    21 -   30:   21p   22p
   [p = path, d = duct, t = terminal, l = leak]
-Arrays: 49736 bytes allocated, 16144 freed, 33592 net
-Start: 49912 bytes allocated, 16320 freed, 33592 net
+Arrays: 50332 bytes allocated, 16524 freed, 33808 net
+Start: 50508 bytes allocated, 16700 freed, 33808 net
 Running steady-state initialization:
  DATE: Jan01   time: 00:00:00
 End Steady-state Initialization
-       7 calls to FillAf()
-       3 calls to luf_sky_s()
+       8 calls to FillAf()
+       4 calls to luf_sky_s()
 
        0 time steps
        4 calls to SolveAf()
-       7 calls to FillAf()
-       3 calls to luf_sky_s()
-       3 calls to lus_sky_s()
+       8 calls to FillAf()
+       4 calls to luf_sky_s()
+       4 calls to lus_sky_s()
 
-NR its. :    0    1
-JfacBins:    2    2
+NR its. :    0    1    2
+JfacBins:    2    1    1
 
 rangeDWC: 0 lam, 0 trns, 0 turbulent
 
-End: 49912 bytes allocated, 16320 freed, 33592 net
-Final: 49912 bytes allocated, 49912 freed, 0 net
+End: 50508 bytes allocated, 16700 freed, 33808 net
+Final: 50508 bytes allocated, 50508 freed, 0 net
 Simulation completed successfully.
