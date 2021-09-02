@@ -113,10 +113,7 @@ class ContamPrjSnippetsFlowElements(ContamPrjSnippets):
         df = pd.DataFrame()
         for i in range(0, len(data), 3):
             element_type = data[i].split()[2]
-            try:
-                col_names = ['id', 'type_id', 'element_type', 'name', 'description'] + self.flow_element_value_dict[element_type]
-            except KeyError:
-                breakpoint()
+            col_names = ['id', 'type_id', 'element_type', 'name', 'description'] + self.flow_element_value_dict[element_type]
             series = pd.Series(data[i].split() + [data[i+1]] + data[i+2].split(),
                                index=col_names, dtype=str,
             )

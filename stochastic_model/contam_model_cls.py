@@ -141,7 +141,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         TODO: create your own error classes, some are used inappropriately here.
 
         Args:
-            path (int or string of int): path number
+            path (int): path number
             param (string): parameter to change options: ['type', 'opening_height']
             value (float or int): new value, data type depends on param 'type': int, 'opening_height': float
 
@@ -221,7 +221,8 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         self.environment_conditions = ContamPrjSnippetsEnvironmentConditions(search_string=".*!\s+Ta\s+Pb\s+Ws.*\n",
                                                     first_column_name='Ta',
                                                     prj_file=self.prj_file)
-        breakpoint()
+    
+    
     def set_environment_conditions(self, condition, value, units='km/hr'):
         """change either the wind speed, direction or ambient temperature
 
@@ -336,10 +337,11 @@ def kilogramPerSecondToMetresCubedPerHour(Q):
 
 
 if __name__ == '__main__':
-    contam_model_details = {'exe_dir': '/home/tdh17/contam-x-3.4.0.0-Linux-64bit/',
-                        'prj_dir': '/home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/',
-                        'name': 'school_corridor'}
+    pass
+    # contam_model_details = {'exe_dir': '/home/tdh17/contam-x-3.4.0.0-Linux-64bit/',
+    #                     'prj_dir': '/home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/',
+    #                     'name': 'school_corridor'}
 
-    contam_model = ContamModel(contam_exe_dir=contam_model_details['exe_dir'],
-                contam_dir=contam_model_details['prj_dir'],
-                project_name=contam_model_details['name'])
+    # contam_model = ContamModel(contam_exe_dir=contam_model_details['exe_dir'],
+    #             contam_dir=contam_model_details['prj_dir'],
+    #             project_name=contam_model_details['name'])
