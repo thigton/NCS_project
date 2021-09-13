@@ -1,5 +1,3 @@
-import pandas as pd
-
 class Students():
 
     def __init__(self, init_room, init_students_per_class):
@@ -53,16 +51,10 @@ class Students():
     def latest_R(self):
         return self.R[-1]
 
+    @property
+    def total_number(self):
+        return self.latest_S + self.latest_I + self.latest_R
 
-    # def remove_all_students(self, first=True):
-    #     if first:
-    #         self.S = [0]
-    #         self.I = [0]
-    #         self.R = [0]
-    #     else:
-    #         self.S.append(0)
-    #         self.I.append(0)
-    #         self.R.append(0)
 
     def update_infectivity_rate(self, rooms, infectivity_rates):
         for room in rooms:

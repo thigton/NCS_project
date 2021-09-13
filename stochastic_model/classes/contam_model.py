@@ -3,8 +3,8 @@ import pandas as pd
 import subprocess
 import numpy as np
 import itertools
-from contam_prj_table_cls import ContamPrjSnippets, ContamPrjSnippetsEnvironmentConditions, ContamPrjSnippetsFlowElements
 
+from classes.contam_snippets import ContamPrjSnippets, ContamPrjSnippetsEnvironmentConditions, ContamPrjSnippetsFlowElements
 
 
 class ContamModel():
@@ -32,7 +32,6 @@ class ContamModel():
         self.__parse_airflow_path_types()
         self.__parse_environment_conditions()
 
-
     def __repr__(self):
         return f'''Simulation details:- \n
 Ambient temperature : {self.environment_conditions.df["Ta"].values[0]}K
@@ -40,31 +39,29 @@ Wind speed : {self.environment_conditions.df["Ws"].values[0]}m/s
 Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
           '''
 
-
-    def run_simulation(self):
-        print(self)
+    def run_simulation(self, verbose=False):
+        if verbose:
+            print(self)
         self.__update_prj_file()
-        self.__run_contamX()
-        self.__run_simread()
+        self.__run_contamX(verbose=verbose)
+        self.__run_simread(verbose=verbose)
         self.__import_flow_rates()
-        self.ventilation_matrix()
-        
+        self.ventilation_matrix(verbose=verbose)
 
-    def __run_contamX(self):
+    def __run_contamX(self, verbose):
         output = subprocess.run([f"{self.contam_exe_dir}contamx3", f"{self.contam_dir}{self.project_name}.prj"],
                                 stderr=subprocess.STDOUT,
                                 stdout=subprocess.PIPE)
-        if output.returncode ==0:
-            print('ContamX ran successfully!')
-            for line in output.stdout.decode('utf-8').split('\n'):
-                print(line)
-        else:
+        if output.returncode != 0:
             print('ContamX did not run successfully!')
             print(output.stderr)
             exit()
+        elif verbose:
+            print('ContamX ran successfully!')
+            for line in output.stdout.decode('utf-8').split('\n'):
+                print(line)
 
-
-    def __run_simread(self):
+    def __run_simread(self, verbose):
         """run simread to get the .lfr file output.
         """
         if not self.simread_file_name:
@@ -77,15 +74,14 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
                                 shell=True,
                                 stderr=subprocess.STDOUT,
                                 stdout=subprocess.PIPE)
-        if output.returncode==0:
-            print('simread ran successfully!')
-            for line in output.stdout.decode('utf-8').split('\n'):
-                print(line)
-        else:
+        if output.returncode!=0:
             print('Simread did not run successfully!')
             print(output.stderr)
             exit()
-
+        elif verbose:
+            print('simread ran successfully!')
+            for line in output.stdout.decode('utf-8').split('\n'):
+                print(line)
 
     def __import_prj_file(self):
         """imports the current .prj file at prj_file_loc
@@ -103,7 +99,6 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         """
         with open(f'{self.contam_dir}{self.project_name}.prj', 'w') as f:
             f.writelines(self.prj_file)
-
 
     def __update_prj_file(self):
         """update the raw prj file with the latest versions of the different dataframes
@@ -123,7 +118,6 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         # save
         self.__save_prj_file()
 
-
     def __parse_flow_paths(self):
         """Extracts the flow path type from the .prj file
         """
@@ -131,6 +125,37 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
                                             first_column_name='P#',
                                             prj_file=self.prj_file)
 
+    def set_initial_settings(self, weather, window_height):
+        # set weather params in model
+        self.set_environment_conditions(condition='wind_direction', value=weather.wind_direction,  units='deg')
+        self.set_environment_conditions(condition='wind_speed', value=weather.wind_speed,  units='km/hr')
+        self.set_environment_conditions(condition='ambient_temp', value=weather.ambient_temp,  units='C')
+        # ensure all windows are the same height and the right type
+        self.set_all_flow_paths_of_type_to(search_type_term='indow',
+                                                                param_dict={'opening_height': window_height,
+                                                                            'type': 1}
+                                                                            )
+                    
+        # ensure all doorways are open at the start
+        self.set_all_flow_paths_of_type_to(search_type_term='oor',
+                                                                param_dict={'type': 4}
+                                                                            )
+
+    def set_all_flow_paths_of_type_to(self, search_type_term, param_dict, rerun=False):
+        """sets all the flow paths of a type 
+
+        Args:
+            search_type_term (string): useful string to search and find all airflow types 
+                           you want to change i.e. 'indow' -> 'Window' , 'oor' -> 'Door'
+            param_dict ({param: value}): [description]
+        """
+        path_type_ids = self.airflow_path_types.df[self.airflow_path_types.df['name'].str.contains(search_type_term)]['id'].values
+        path_ids = self.flow_paths.df[self.flow_paths.df['e#'].isin(path_type_ids)]['P#'].values
+        for path in path_ids:
+            for p, v in param_dict.items():
+                self.set_flow_path(path=int(path), param=p, value=v)
+        if rerun:
+            self.run_simulation(verbose=False)
 
     def set_flow_path(self, path, param, value):
         """can change the relative height of an opening and the type of the opening.
@@ -206,14 +231,11 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         
         self.zones.df.loc[self.zones.df[search_on] == str(zone), 'T0'] = f'{value:0.2f}'
 
-        
     def __parse_airflow_path_types(self):
         """Extracts the airflow path types from the .prj file
         """
         self.airflow_path_types = ContamPrjSnippetsFlowElements(search_string=".*flow elements.*\n",
                                                     prj_file=self.prj_file)
-
-
 
     def __parse_environment_conditions(self):
         """Extracts the environmental conditions from the .prj file
@@ -221,7 +243,6 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         self.environment_conditions = ContamPrjSnippetsEnvironmentConditions(search_string=".*!\s+Ta\s+Pb\s+Ws.*\n",
                                                     first_column_name='Ta',
                                                     prj_file=self.prj_file)
-    
     
     def set_environment_conditions(self, condition, value, units='km/hr'):
         """change either the wind speed, direction or ambient temperature
@@ -232,6 +253,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             units (str, optional): units of value.
                                    wind options ['km/hr', 'm/s']
                                   temp options ['C', 'F', 'K']
+                                  wind direction ['deg' , 'rad']
                                   Defaults to 'km/hr' and 'K'.
             NOTE: units are converted to the default value of the particular
             CONTAM file I am using, this must be referenced somewhere in the
@@ -248,8 +270,10 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             raise TypeError(f'the new {condition} should be a float')
         elif condition not in ['wind_speed', 'wind_direction', 'ambient_temp']:
             raise ValueError('Only wind_speed, wind_direction or ambient_temp can be changed.')
-        elif units not in ['km/hr', 'm/s'] and condition in ['wind_speed', 'wind_direction']:
-            raise ValueError('Only kilometres/hr [km/hr] or metres/second [m/s] for wind speed and direction')
+        elif units not in ['km/hr', 'm/s'] and condition == 'wind_speed':
+            raise ValueError('Only kilometres/hr [km/hr] or metres/second [m/s] for wind speed')
+        elif units not in ['rad','deg'] and condition == 'wind_direction':
+            raise ValueError('Only degrees [deg] or redians [rad] for wind direction')
         elif units not in ['C', 'F', 'K'] and condition == 'ambient_temp':
             raise ValueError('Only Celcius [C] Fahrenheit [F] or Kelvin [K] accepted for ambient temp')
         elif units == 'km/hr':
@@ -258,12 +282,13 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             value = celciusToKelvin(value)
         elif units == 'F':
             value = fahrenheitToKelvin(value)
+        elif units == 'rad':
+            value = np.rad2deg(value)
 
         search_on = {'wind_speed': ['Ws', f'{value:0.3f}'],
                      'wind_direction': ['Wd', f'{value:0.1f}'],
                      'ambient_temp': ['Ta', f'{value:0.3f}']}
         self.environment_conditions.df.loc[0, search_on[condition][0]] = search_on[condition][1]
-
 
     def __import_flow_rates(self):
         """
@@ -273,8 +298,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         """
         self.flow_rate_df = pd.read_csv(f'{self.contam_dir}{self.project_name}.lfr', sep='\t', header=0, index_col=2)
 
-
-    def ventilation_matrix(self):
+    def ventilation_matrix(self, verbose):
         """Produces a matrix of the venitlation rates as per equation 3.8
         Noakes and Sleigh (2009). 
         NOTE: The data manipulation here is pretty messy combining the flow paths df and the
@@ -283,13 +307,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         NOTE: I am only using the single opening - two way flow model on CONTAM. Need to check
         if there are any other bugs if different opening types are used.
         """
-        def choose_flow_rates(row, zone, into_zone=True):
-            if (into_zone and row['m#'] == zone) or (not into_zone and row['n#'] == zone):
-                # take the positive numbers
-                return abs(row[['F0 (kg/s)', 'F1 (kg/s)']].max())
-            else:
-                # take the negative numnbers
-                return abs(row[['F0 (kg/s)', 'F1 (kg/s)']].min())
+
 
         no_zones = len(self.zones.df)
         self.vent_mat = np.empty(shape=(no_zones, no_zones))
@@ -304,11 +322,12 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             if isinstance(paths, float):
                 self.vent_mat[i, j] = paths
                 continue
-            flow_rates = paths.apply(lambda x: choose_flow_rates(x, zone=str(i+1), into_zone=into_zone), axis=1)
+            flow_rates = paths.apply(lambda x: self.choose_flow_rates(x, zone=str(i+1), into_zone=into_zone), axis=1)
             self.vent_mat[i, j] = 0 - flow_rates.sum() if i == j else flow_rates.sum()
         np.savetxt(f"{self.contam_dir}vent_mat_check.csv", self.vent_mat, delimiter=",")
         self.vent_mat = kilogramPerSecondToMetresCubedPerHour(self.vent_mat)
-        print('Ventilation matrix produced...')
+        if verbose:
+            print('Ventilation matrix produced...')
     
     def search_flow_paths(self, zone_row, zone_col=None):
         if zone_col:
@@ -320,7 +339,35 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         else:
             paths['merge P#'] = paths['P#'].apply(lambda x: int(x))
             return paths.merge(right=self.flow_rate_df, right_index=True, left_on='merge P#')[['P#', 'n#','m#','F0 (kg/s)','F1 (kg/s)']]
-    
+
+    def choose_flow_rates(self, row, zone, into_zone=True):
+        if (into_zone and row['m#'] == zone) or (not into_zone and row['n#'] == zone):
+            # take the positive numbers
+            return abs(row[['F0 (kg/s)', 'F1 (kg/s)']].max())
+        else:
+            # take the negative numbers
+            return abs(row[['F0 (kg/s)', 'F1 (kg/s)']].min())
+
+    def get_ventilation_rate_for(self, zone_name):
+        """will return the total and fresh ventilation rates [litres per second]
+
+        Args:
+            zone_name (string): name of the zone 
+
+        Returns:
+            tuple: total and fresh ventilation rates
+        """
+
+        zone = self.zones.df[self.zones.df['name'] == zone_name]
+        zone_id = zone['Z#'].values[0]
+        flow_rates = self.search_flow_paths(zone_row=zone_id)
+        flow_rates['in'] = flow_rates.apply(lambda x: self.choose_flow_rates(x, zone=zone_id, into_zone=True), axis=1)
+        total = flow_rates['in'].sum()
+        fresh = flow_rates[(flow_rates['n#'] == '-1') | (flow_rates['m#'] == '-1')]['in'].sum()
+
+        # if self.environment_conditions.df['Ta'].values[0] == f'{10.0+273.15:0.3f}' and self.environment_conditions.df['Ws'].values[0] == f'{0.0:0.3f}':
+        #     breakpoint()
+        return (kilogramPerSecondToLitresPerSecond(total) , kilogramPerSecondToLitresPerSecond(fresh))
 
 def celciusToKelvin(T):
     return T + 273.15
@@ -335,6 +382,9 @@ def kilogramPerSecondToMetresCubedPerHour(Q):
     air_density = 1.204
     return Q / air_density * 60**2
 
+def kilogramPerSecondToLitresPerSecond(Q):
+    air_density = 1.204
+    return Q / air_density * 1e3
 
 if __name__ == '__main__':
     pass
