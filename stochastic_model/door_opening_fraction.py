@@ -1,3 +1,4 @@
+# pylint: disable=no-member
 import itertools
 from datetime import time, timedelta
 
@@ -14,9 +15,9 @@ from classes.weather import Weather
 from savepdf_tex import savepdf_tex
 
 plot_time_series = False
-save=True
+save=False
 wind_dir = 0.0
-door_opening_fraction = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+door_opening_fraction = [0.0, 0.1, 0.2, 0.3]#, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 wind_speeds = [0.0]#, 5.0, 10.0, 15.0, 20.0]
 time_to_get_results = timedelta(days=5)
 contam_model_details = {'exe_dir': '/home/tdh17/contam-x-3.4.0.0-Linux-64bit/',
@@ -38,14 +39,14 @@ col_names = pd.MultiIndex.from_product([door_opening_fraction,
 
 fig1, ax1 = plt.subplots(1,1, figsize=(12,6))
 fig2, ax2 = plt.subplots(1,1, figsize=(12,6))
-fig3, ax3 = plt.subplots(1,1, figsize=(12,6))
+fig3, ax3 = plt.subplots(len(door_opening_fraction),1, figsize=(12,18))
 fig1.autofmt_xdate(rotation=45)
 fig2.autofmt_xdate(rotation=45)
 
 for i, wind_speed in enumerate(wind_speeds):
     box_plot_df = pd.DataFrame(columns=col_names)
     door_open_df = pd.DataFrame(columns=door_opening_fraction)
-    for door in door_opening_fraction:
+    for ii, door in enumerate(door_opening_fraction):
         simulation_constants = {'duration': timedelta(days=7),
                                 'mask_efficiency': 0,
                                 'lambda_home': 0/898.2e4 / 24, # [hr^-1] should be quanta hr^-1? h
@@ -55,7 +56,7 @@ for i, wind_speed in enumerate(wind_speeds):
                                 'recover_rate': (8.2*24)**(-1), # [hr^-1]
                                 'school_start': time(hour=9),
                                 'school_end': time(hour=16),
-                                'no_of_simulations': 1000,
+                                'no_of_simulations': 10000,
                                 'init_students_per_class': 30,
                                 'plotting_sample_rate': '5min',
                                 'door_open_fraction': door,
@@ -82,6 +83,9 @@ for i, wind_speed in enumerate(wind_speeds):
         box_plot_df[(door, 'total')] = model.get_risk_at_time(time_to_get_results)
         box_plot_df[(door, 'first room')] = model.get_risk_at_time(time_to_get_results, first_infection_group=True)
         door_open_df[door]= model.door_open_fraction_actual
+        door_open_df[door].plot.hist(ax=ax3[ii], bins=50)
+        ax3[ii].set_xlim(0,1)
+
 
 
     if plot_time_series:
@@ -113,20 +117,19 @@ for i, wind_speed in enumerate(wind_speeds):
     ax2.plot(box_plot_df.xs(key='first room', level=1, axis=1).columns,
              box_plot_df.xs(key='first room', level=1, axis=1).mean(axis=0), color=f'C{i}', label=f'{wind_speed}kmph')
 
-    door_open_df.loc[:,~door_open_df.columns.isin([0.0,1.0])].plot.kde(ax=ax3)
+    
     # box_plot_df.boxplot()
     # breakpoint()
     # sns.boxplot(x="door open", y="value", hue='grouping', data=box_plot_df.melt(), ax=ax1)
 ax1.legend()
 ax2.legend()
-ax3.legend()
 ax1.set_xlabel('door open ratio')
 ax1.set_ylabel(r'Infection risk [x100\%]')
 ax2.set_xlabel('door open ratio')
 ax2.set_ylabel(r'Infection risk [x100\%]')
 
-ax3.set_xlabel('door opening fraction')
-ax3.set_xlim([0,1])
+# ax3.set_xlabel('door opening fraction')
+# ax3.set_xlim([0,1])
 
 if save:
     save_loc = '/home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/figures/'

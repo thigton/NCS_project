@@ -33,7 +33,7 @@ simulation_constants = {'duration': timedelta(days=7),
                         'door_open_fraction': 1.0,
                         'window_open_fraction': 1.0,
                         }
-weather_params = Weather(wind_speed=0.0, wind_direction=0.0, ambient_temp=10.0)
+weather_params = Weather(wind_speed=10.0, wind_direction=0.0, ambient_temp=10.0)
 
 contam_model.set_initial_settings(weather_params, window_height=1.0)
 # run contam simulation
@@ -44,8 +44,9 @@ model = StocasticModel(weather=weather_params,
                        contam_model=contam_model,
                        closing_opening_type='door',
                        )
-model.run(results_to_track=['risk', 'inter_event_time'])
-# model.plot_SIR(ax=ax,ls=ls,comparison='window_height', value=H)
+model.run(results_to_track=['risk'])
+fig, ax  = plt.subplots(1,1)
+model.plot_SIR(ax=ax,ls='-', comparison='window_height')
 
 # plt.legend()
 # plt.show()

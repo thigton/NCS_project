@@ -55,6 +55,7 @@ for speed, direction in itertools.product(wind_speed, wind_direction):
                            contam_details=contam_model_details,
                            simulation_constants=simulation_constants,
                            contam_model=contam_model,
+                           closing_opening_type='door',
                            )
     model.run(results_to_track=['risk', 'first_infection_group'])
     if plot_time_series:

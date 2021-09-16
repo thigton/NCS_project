@@ -4,8 +4,8 @@ class Room():
         self.matrix_id = matrix_id
         self.room_name = zone_info['name']
         self.temperature = zone_info['T0']
-        self.door_open = [True]
-        self.window_open = [True]
+        self.door_open = []
+        self.window_open = []
         self.infectivity_rate = 0
 
     def __repr__(self):

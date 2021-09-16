@@ -13,7 +13,7 @@ def solve(t, C, *args):
 
 if __name__ == '__main__':
 
-    save=True
+    save=False
     init_room_idx = 6
     event_time = 1.5
     end_time = 4

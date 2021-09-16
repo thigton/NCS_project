@@ -12,8 +12,8 @@ from classes.weather import Weather
 from savepdf_tex import savepdf_tex
 
 plot_time_series = False
-save=True
-wind_dir = 0.0
+save=False
+wind_dir = 45.0
 wind_speeds = np.linspace(0.0, 20.0, 21)
 amb_temp = np.linspace(5.0, 19.0, 15)
 windward_name = 'Classroom6'
@@ -70,7 +70,7 @@ plt.ylabel('ventilation rate [l/s/pp]')
 if save:
     save_loc = '/home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/figures/'
     savepdf_tex(fig=f, fig_loc=save_loc,
-                name=f'total_ventilation')
+                name=f'total_ventilation_wd_{str(wind_dir).replace(".","_")}')
 else:
     plt.show()
 plt.close()
@@ -87,7 +87,7 @@ plt.xlabel('wind speed [kph]')
 plt.ylabel('ventilation rate [l/s/pp]')
 if save:
     savepdf_tex(fig=f, fig_loc=save_loc,
-                name=f'fresh_ventilation')
+                name=f'fresh_ventilation_wd_{str(wind_dir).replace(".","_")}')
 else:
     plt.show()
 plt.close()

@@ -4,22 +4,34 @@ import pandas as pd
 from datetime import datetime
 import matplotlib.pyplot as plt
 from collections import defaultdict
-from classes.simulation import Simulation
+from classes.CTMC_simulation import Simulation
+from classes.DTMC_simulation import DTMC_simulation
 import random
 from savepdf_tex import savepdf_tex
 
 class StocasticModel():
     def __init__(self, weather, contam_details,
                 simulation_constants,
-                contam_model, closing_opening_type):
+                contam_model, closing_opening_type, method='CTMC'):
 
         self.weather = weather
         self.contam_details = contam_details
         self.consts = simulation_constants
         self.contam_model = contam_model
         self.closing_opening_type = closing_opening_type
+        self.method = method
+        if self.method == 'CTMC':
+            self.sim_class = Simulation
+        elif self.method == 'DTMC':
+            self.sim_class = DTMC_simulation
+        else:
+            raise ValueError('method should be either DTMC or CTMC [default]')
         self.vent_mat_closed = self.get_closed_matrix(opening=self.closing_opening_type)
-        self.start_time = datetime(year=2021, month=3, day=1, hour=0, minute=0, second=0)
+        self.start_time = datetime(year=2021, month=3, day=1,
+                                   hour=self.consts['school_start'].hour,
+                                   minute=self.consts['school_start'].minute,
+                                   second=self.consts['school_start'].second,
+                                   microsecond=self.consts['school_start'].microsecond,)
         self.end_time = self.start_time + self.consts['duration']
         self.S_df = pd.DataFrame()
         self.I_df = pd.DataFrame()
@@ -38,9 +50,10 @@ class StocasticModel():
         """
         results = defaultdict(list)
         for sim_number in range(self.consts['no_of_simulations']):
-            if sim_number % 10 == 0:
-                print(f'{sim_number/self.consts["no_of_simulations"]:0.0%} complete', end='\r')
-            sim = Simulation(sim_id=sim_number,
+            if sim_number % 2 == 0:
+                print(f'{sim_number/self.consts["no_of_simulations"]:0.1%} complete', end='\r')
+            
+            sim = self.sim_class(sim_id=sim_number,
                              start_time=self.start_time,
                              simulation_constants = self.consts,
                              contam_model=self.contam_model,
@@ -56,24 +69,32 @@ class StocasticModel():
             # self.simulations.append(sim)
             # if sim.S_df.loc[self.end_time].sum() / sim.S_df.loc[self.start_time].sum() < 0.6:
             #     # sample some simulations to make sure they are running ok
-            #     sim.plot_lambda()
-            #     sim.plot_SIR()
+            # sim.plot_lambda()
+            # if sim.R_k == 0.0:
+            # sim.plot_SIR()
+            # sim.plot_quanta_conc()
             #     sim.plot_SIR_total()
             #     exit()
+
         for k,v in results.items():
             if k in ['door_open_fraction_actual', 'window_open_fraction_actual']:
                 setattr(self, k, v)
                 continue
             axis = 0 if k == 'inter_event_time' else 1
             setattr(self, k, pd.concat(results[k], axis=axis))
+            getattr(self, k).fillna(axis=0, inplace=True, method='ffill')
+
 
         if 'inter_event_time' in results.keys():
             self.plot_inter_event_time_distribution()
 
         del results
 
-    def plot_SIR(self, ax, ls, comparison, **kwargs):
-        value = kwargs['value'] if 'value' in kwargs else self.consts[comparison]
+    def plot_SIR(self, ax, ls, comparison=None, **kwargs):
+        if comparison:
+            value = kwargs['value'] if 'value' in kwargs else self.consts[comparison]
+        else:
+            value = ''
         for i, X in enumerate(['S','I','R']):
             time = getattr(self, f'{X}_sum').index
             mean = getattr(self, f'{X}_sum').mean(axis=1)

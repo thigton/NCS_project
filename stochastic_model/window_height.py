@@ -71,6 +71,7 @@ for i, wind_speed in enumerate(wind_speeds):
                                contam_details=contam_model_details,
                                simulation_constants=simulation_constants,
                                contam_model=contam_model,
+                               closing_opening_type='door',
                                )
         model.run(results_to_track=['risk', 'first_infection_group'])
 
