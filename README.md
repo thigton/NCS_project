@@ -1,6 +1,7 @@
 # NCS_project - Ventilation effects in Multi-zonal spaces on airborne infection
 
 ## Code structure
+![Code structure](https://github.com/thigton/NCS_project/blob/master/code_structure.png)
 
 ## CX1 workflow
 1. Write run script as you want, (test on local machine)
