@@ -38,12 +38,13 @@ class Simulation():
         self.students = [Students(init_room=room,
                                   init_students_per_class=self.init_students_per_class)
                          for room in self.rooms]
-        self.total_S = sum([students.latest_S for students in self.students])
 
         self.apply_on_all(seq='rooms',
                           method='update_group_ids',
                           students=self.students)
         self.first_infection()
+        self.total_S = sum([students.latest_S for students in self.students])
+        
         self.quanta_conc = [self.calculate_quanta_conc()]
         self.Lambda = [self.infectivity_rate()]
         self.assign_infectivity_rate_to_rooms_and_groups()
@@ -361,9 +362,9 @@ class Simulation():
         self.R_df = self.get_df(param='R')
         self.risk = (self.total_S - self.S_df.sum(axis=1)) / self.total_S
         self.inter_event_time = pd.Series(self.inter_event_time)
-        S_init_group = self.S_df[(self.sim_id, self.first_infection_group)]
-        self.first_infection_group = (
-            self.init_students_per_class - 1 - S_init_group) / (self.init_students_per_class - 1)
+        # S_init_group = self.S_df[(self.sim_id, self.first_infection_group)]
+        # self.first_infection_group = (
+            # self.init_students_per_class - 1 - S_init_group) / (self.init_students_per_class - 1)
         if  'door' in self.opening_method:
             self.door_open_df, self.door_open_percentage = self.get_opening_open_df(opening='door')
 

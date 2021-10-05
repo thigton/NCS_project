@@ -115,12 +115,13 @@ class StocasticModel():
             for k, v in result.items():
                 results_dic[k].append(v)
         for k,v in results_dic.items():
-            if k in ['door_open_fraction_actual', 'window_open_fraction_actual']:
+            if k in ['door_open_fraction_actual', 'window_open_fraction_actual',
+                     'first_infection_group']:
                 setattr(self, k, v)
-                continue
-            axis = 0 if k == 'inter_event_time' else 1
-            setattr(self, k, pd.concat(results_dic[k], axis=axis))
-            getattr(self, k).fillna(axis=0, inplace=True, method='ffill')
+            else:
+                axis = 0 if k == 'inter_event_time' else 1
+                setattr(self, k, pd.concat(results_dic[k], axis=axis))
+                getattr(self, k).fillna(axis=0, inplace=True, method='ffill')
         del results
         return results_dic
 
@@ -177,6 +178,15 @@ class StocasticModel():
         # ax.plot(time, q_05, ls='--', color=color)
         # ax.fill_between(time, q_05, q_95, alpha=0.2, color=color)
 
+    def percentage_of_infection_in_initial_room(self):
+        I_init_group = pd.concat([self.I_df.loc[:,(idx, val)] for idx, val in enumerate(self.first_infection_group)],
+                                             axis=1)
+        R_init_group = pd.concat([self.R_df.loc[:,(idx, val)] for idx, val in enumerate(self.first_infection_group)],
+                                             axis=1)
+        I_init_group = I_init_group.droplevel(level=1, axis=1)
+        R_init_group = R_init_group.droplevel(level=1, axis=1)
+        return (I_init_group + R_init_group) / (self.I_sum + self.R_sum)
+    
     @property
     def S_sum(self):
         return self.S_df.groupby(level='sim id', axis=1).sum()
