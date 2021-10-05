@@ -42,6 +42,7 @@ infectivity_rate: {self.infectivity_rate}
 
 
     def open_close_opening(self, bool, opening):
+        """Assign latest status of opening (door or window) / (open or closed)"""
         getattr(self, f'{opening}_open').append(bool)
 
 

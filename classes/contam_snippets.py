@@ -31,6 +31,11 @@ class ContamPrjSnippets():
 
 
     def __find_raw_data(self, prj_file):
+        """Searches prj file for the right section.
+
+        Args:
+            prj_file (list<string>): the raw prj file imported into a list of strings.
+        """
         found = False
         for i, line in enumerate(prj_file):
             if re.search(self.search_string, line):
@@ -43,16 +48,28 @@ class ContamPrjSnippets():
 
 
     def _extract_raw_data(self, prj_file):
+        """Assign data to this class instance
+
+        Args:
+            prj_file ([type]): [description]
+        """
         self.column_headers = prj_file[self.search_string_idx+1]
         self.raw_data = prj_file[self.search_string_idx+2:self.end_idx]
         self.number_of_columns = len(self.raw_data[0].split())
 
     def __save_tmp_file(self):
+        """Save the extracted data to file.
+        """
         self.tmp_file_loc = f'{os.getcwd()}/tmp.txt'
         with open(self.tmp_file_loc, 'w') as f:
             f.writelines(self.raw_data)
 
     def _get_df(self):
+        """get the data into a dataframe
+
+        Returns:
+            [type]: [description]
+        """
         self.__save_tmp_file()
         return pd.read_csv(self.tmp_file_loc,
                         delim_whitespace=True,
@@ -85,6 +102,8 @@ class ContamPrjSnippets():
 
 
     def update_raw_data(self):
+        """Updates the values in the dataframe into the list of strings to be put back in the prj file.
+        """
         # change the values which have become floats back into integers
         # values = self.df.select_dtypes(include=np.number).applymap('{:g}'.format)0
         values = self.df.values.tolist()
@@ -94,10 +113,10 @@ class ContamPrjSnippets():
 
 
 
-
 class ContamPrjSnippetsEnvironmentConditions(ContamPrjSnippets):
 
     def _extract_raw_data(self, prj_file):
+
         self.column_headers = prj_file[self.search_string_idx]
         self.raw_data = [prj_file[self.search_string_idx+1]]
         self.number_of_columns = len(self.raw_data[0].split())

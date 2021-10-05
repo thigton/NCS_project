@@ -5,13 +5,18 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp, simpson
 
 class DTMC_simulation(Simulation):
+    """Any methods not found in this script will be in CTMC_simulation
 
+    Args:
+        Simulation ([type]): [description]
+    """
     def __init__(self, sim_id, start_time, simulation_constants, contam_model, opening_method,  movement_method):
         super().__init__(sim_id, start_time, simulation_constants, contam_model, opening_method, movement_method)
         self.room_volumes = self.contam_model.zones.df['Vol'].astype(float).values
         self.dt = self.time_step.total_seconds()/60**2
 
     def run(self):
+        """Main DTMC run routine"""
         while self.current_time < self.end_time:
             self.quanta_conc_integration_results = self.quanta_conc_integration()
             self.quanta_conc.append(self.calculate_quanta_conc())
@@ -46,6 +51,8 @@ class DTMC_simulation(Simulation):
                 
 
     def move_students(self):
+        """Move students based on the movement_method defined
+        """
         if self.movement_method == 'change_rooms_in_group':
             # Q is in the order of self.contam_model.zones.df['Z#']
             room_ids = [x.room_id for x in self.rooms if x.room_type == 'classroom']
@@ -67,6 +74,7 @@ class DTMC_simulation(Simulation):
 
 
     def checkForInfectionRecover(self):
+        """Check for infection, recovery or no event independently in each classroom"""
         self.prob_infection = (self.current_lambda*self.S_arr) * self.dt
 
         self.prob_recover = (self.recover_rate*self.I_arr) * self.dt
@@ -87,6 +95,9 @@ class DTMC_simulation(Simulation):
 
 
     def quanta_conc_integration(self):
+        """return the solution to the numerical integration of the
+        quanta concentration transport equation
+        """
         def integration(t, C, *args):
             Q , infection_rate, volume = args
             dC = infection_rate + np.matmul(Q, C)
@@ -105,6 +116,7 @@ class DTMC_simulation(Simulation):
 
 
     def calculate_quanta_conc(self,):
+        """Get the latest quanta concentration"""
         # if the list doesn't exist this is the first entry
         if not hasattr(self, 'quanta_conc'):
             return np.zeros(len(self.rooms))
@@ -113,6 +125,8 @@ class DTMC_simulation(Simulation):
 
 
     def infectivity_rate(self):
+        """Infection rate, if at home, this is based on lambda home,
+        If at school this is calculated by integrating the quanta concentration"""
         if not hasattr(self, 'Lambda'):
             return np.zeros(len(self.rooms))
         if self.in_school():

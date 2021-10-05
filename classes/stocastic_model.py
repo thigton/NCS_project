@@ -43,7 +43,15 @@ class StocasticModel():
         self.first_infection_group = pd.DataFrame()
 
 
+    def run(self, results_to_track, parallel=False):
+        """main run function which is actually called from run script."""
+        if parallel:
+            self.run_in_parallel(results_to_track)
+        else:
+            self.run_for_loop(results_to_track)
+            
     def run_in_parallel(self, results_to_track):
+        """Runs the different simulations in parallel (across multiple cpus)"""
         with concurrent.futures.ProcessPoolExecutor(max_workers=32) as executor:
             results = executor.map(self.run_base_routine,
                                    [(x, results_to_track) for x in range(self.consts['no_of_simulations'])])
@@ -54,15 +62,9 @@ class StocasticModel():
             self.plot_inter_event_time_distribution()
         del results
         gc.collect()
-        
-    
-    def run(self, results_to_track, parallel=False):
-        if parallel:
-            self.run_in_parallel(results_to_track)
-        else:
-            self.run_for_loop(results_to_track)
 
     def run_for_loop(self,results_to_track):
+        """Run script if onnly using a single cpu."""
         def run_generator(no_of_simulations, results_to_track):
             for sim_number in range(no_of_simulations):
                 yield self.run_base_routine((sim_number, results_to_track))
@@ -74,7 +76,7 @@ class StocasticModel():
         gc.collect()
 
     def run_base_routine(self, args_tuple):
-        """[summary]
+        """actual run routine of each simulation, including some results extraction
 
         Args:
             results_to_track (list<str>): options: S_df, I_df, R_df, risk, inter_event_time, first_infection_group
@@ -105,6 +107,9 @@ class StocasticModel():
         return results
 
     def assign_results_as_attrs(self, results):
+        """Takes the results generator created when running the 
+        simulations and assigning the important data to 
+        atrributes of the stochastic model"""
         results_dic = defaultdict(list)
         for result in results:
             for k, v in result.items():
@@ -120,6 +125,7 @@ class StocasticModel():
         return results_dic
 
     def plot_SIR(self, ax, ls, comparison=None, **kwargs):
+        """Plot mean SIR of all simulations"""
         if comparison:
             value = kwargs['value'] if 'value' in kwargs else self.consts[comparison]
         else:
@@ -137,6 +143,7 @@ class StocasticModel():
 
 
     def plot_inter_event_time_distribution(self):
+        """Plot distibution of the time to the next event (CTMC method only) Redundant"""
         fig, ax  = plt.subplots(1,1, figsize=(10,5))
         (pd.to_timedelta(self.inter_event_time) / pd.Timedelta(hours=1)).hist(bins=range(0,120, 1), ax=ax, density=True)
         ax.set_xlabel('Inter event time [hr]')
@@ -152,10 +159,9 @@ class StocasticModel():
             plt.show()
         plt.close()
 
-    def plot_time_step_distribution(self):
-        pass
 
     def plot_risk(self, ax, comparison, **kwargs):
+        """Plot the mean infection risk with time."""
         df = self.first_infection_group if 'first_infection_group' in kwargs else self.risk
         value = kwargs['value'] if 'value' in kwargs else self.consts[comparison]
         lw = 1 if 'lw' not in kwargs else kwargs['lw']
@@ -184,33 +190,10 @@ class StocasticModel():
         return self.R_df.groupby(level='sim id', axis=1).sum()
 
     def get_risk_at_time(self, time, **kwargs):
+        """Get the risk at a certain time through the simulation."""
         df = self.first_infection_group if 'first_infection_group' in kwargs else self.risk
         date_time = self.start_time + time
         return df.loc[date_time].values
-
-    # def get_closed_matrix(self, opening):
-    #     dic = {'door': {'fraction' : self.consts['door_open_fraction'],
-    #                     'open_type': 4,
-    #                     'closed_type': 3} ,
-    #            'window':{'fraction' : self.consts['window_open_fraction'],
-    #                     'open_type': 1,
-    #                     'closed_type': 6}
-    #                     }
-    #     self.contam_model.set_all_flow_paths_of_type_to(search_type_term=opening[1:],
-    #                                 param_dict={'type': dic[opening]['closed_type']},
-    #                                 rerun=True,
-    #                                         )
-        
-    #     #save matrix
-    #     vent_mat_closed = self.contam_model.vent_mat
-    #     #reopen openings so self.contam_model.vent_mat is the open matrix
-    #     self.contam_model.set_all_flow_paths_of_type_to(search_type_term=opening[1:],
-    #                                                     param_dict={'type': dic[opening]['open_type']},
-    #                                                     rerun=True,
-    #                                                             )
-    #     return vent_mat_closed
-
-
 
 
 if __name__ == '__main__':

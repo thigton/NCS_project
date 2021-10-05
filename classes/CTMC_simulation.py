@@ -12,6 +12,8 @@ from classes.contam_model import binary_ref_to_int
 
 
 class Simulation():
+    """Handles a single simulation. Needs initialising and the just running
+    """
 
     def __init__(self, sim_id, start_time, simulation_constants,
                  contam_model, opening_method, movement_method):
@@ -48,8 +50,10 @@ class Simulation():
 
 
     def run(self):
+        """Main stochastic run process (CTMC!!!)
+        """
         while self.current_time < self.end_time:
-            # calculate R_k
+            # calculate R_k (sum of all the infection and recovery rates)
             self.R_k = sum(np.concatenate(
                 (self.current_lambda*self.S_arr, self.recover_rate*self.I_arr), axis=0))
             # inter event time
@@ -106,7 +110,13 @@ class Simulation():
 
 
     def open_close_opening(self, opening_method, all_open_override=False):
+        """Method to open or close the doors on the next time step
 
+        Args:
+            opening_method (string): options 'all_doors_only_random' -> all doors are subject to the door open fractio
+                                                'internal_doors_only_random' -> only internal doors are subject to the door open fraction.
+            all_open_override (bool, optional): Will override stochastic process and just open up all the doors. Defaults to False.
+        """
         if 'door' in opening_method:
             if not hasattr(self.contam_model, 'all_door_matrices'):
                 print('Large ventilation matrix not found...... will run Contam directly')
@@ -142,6 +152,14 @@ class Simulation():
 
 
     def assign_door_position_to_room_cls(self, open_bool, opening_df):
+        """ Assign whether the door is open to the room class
+        NOTE: Only really set up for assigning whether the door is open or not.
+        Can extend to windows if interested
+
+        Args:
+            open_bool (bool): [description]
+            opening_df (dataframe): dataframe of all openings being assigned whether they are open or no
+        """
         classrooms = [x for x in self.rooms if x.room_type == 'classroom']
         corridors = [x for x in self.rooms if x.room_type == 'corridor']
         for classroom in classrooms:
@@ -155,32 +173,20 @@ class Simulation():
 
     @property
     def vent_matrix(self):
+        """returns the current ventilation matrix
+
+        Returns:
+            [type]: [description]
+        """
         if hasattr(self.contam_model, 'all_door_matrices'):
             return self.contam_model.all_door_matrices[self.contam_model.big_vent_matrix_idx]
         else:
             return self.contam_model.vent_mat
 
-        # check if open or not, needs to be more advanced if we are varying this
-        # if opening == 'door':
-        #     currently_open = self.rooms[0].door_open[-1]
-        # elif opening == 'window':
-        #     currently_open = self.rooms[0].window_open[-1]
-
-        # if to_open and not currently_open:
-        #     # open all the openings
-        #     self.contam_model.set_all_flow_paths_of_type_to(search_type_term=opening[1:],
-        #                                                 param_dict={'type': dic[opening]['open_type']},
-        #                                                 rerun=True,
-        #                                                         )
-        # elif not to_open and currently_open:
-        #     # close all the openings
-        #     self.contam_model.set_all_flow_paths_of_type_to(search_type_term=opening[1:],
-        #                                         param_dict={'type': dic[opening]['closed_type']},
-        #                                         rerun=True,
-        #                                                 )
-
-
     def first_infection(self):
+        """Assign the first infection to a group
+
+        """
         infected_group_id = random.choice(
             [room.current_group_id for room in self.rooms if room.room_type == 'classroom'])
         group_idx = self.get_student_group_idx_by_attr(
@@ -208,6 +214,9 @@ class Simulation():
         return [idx for idx, student in enumerate(self.students) if getattr(student, attr) == value]
 
     def get_room_idx_by_attr(self, attr, value):
+        """
+        return the index in the list of rooms if an attribute of the class instance matches
+        the value provided"""
         return [idx for idx, room in enumerate(self.rooms) if getattr(room, attr) == value]
 
     @property
@@ -221,6 +230,7 @@ class Simulation():
 
 
     def in_school(self, t_delta=timedelta(hours=0)):
+        """ return bool whether in school based on the current time + the t_delta provided"""
         t = self.current_time + t_delta
         return (t.weekday() in [0, 1, 2, 3, 4] and
                 t.time() >= self.school_start and
@@ -231,6 +241,7 @@ class Simulation():
         return self.quanta_conc[-1]
 
     def calculate_quanta_conc(self):
+        """calculate the quanta concentration. Assuming steady state quatna concentration (matrix calc)"""
         if self.in_school():
             return np.linalg.solve(
                     self.vent_matrix, self.infection_rates)
@@ -238,6 +249,7 @@ class Simulation():
             return np.zeros(len(self.rooms))
 
     def infectivity_rate(self):
+        """return the current infection rate [lambda = C*p]"""
         if self.in_school():
             return self.current_quanta_conc * self.pulmonary_vent_rate
         else:
@@ -245,6 +257,7 @@ class Simulation():
 
     @property
     def infection_rates(self):
+        """return the latest source term [q*I] for the transport equation"""
         return np.array([-(x.latest_I*self.quanta_gen_rate) for x in self.students])
 
     @property
@@ -261,19 +274,21 @@ class Simulation():
                               infectivity_rates=self.current_lambda)
 
     def time_to_next_event(self):
+        """time to next event, sampled from the exponential distribution."""
         if self.R_k != 0:
             return timedelta(hours=-np.log(random.random())/self.R_k)
         else:
             return timedelta(seconds=0)
 
     def next_school_start_or_end_time(self, which):
-        """[summary]
+        """returns the next school start or end time based on the current time
+        (used in CTMC run method only)
 
         Args:
             which (string): options [start, end]
 
         Returns:
-            [type]: [description]
+            datetime: [description]
         """
         # week day before start/end i.e. the next time is the same day
         if (self.current_time.time() < getattr(self, f'school_{which}') and
@@ -288,11 +303,7 @@ class Simulation():
         else:
             days_ahead = 7 - self.current_time.weekday()
             tmp_time = self.current_time + timedelta(days=days_ahead)
-        # time = tmp_time.replace(hour=getattr(self, f'school_{which}').hour,
-        #                          minute=getattr(self, f'school_{which}').minute,
-        #                          second=getattr(self, f'school_{which}').second,
-        #                          microsecond=getattr(self, f'school_{which}').microsecond,)
-        # breakpoint()
+
 
         return tmp_time.replace(hour=getattr(self, f'school_{which}').hour,
                                  minute=getattr(self, f'school_{which}').minute,
@@ -301,6 +312,12 @@ class Simulation():
 
 
     def locationOfNextEvent(self):
+        """determines the location and type of the next events
+        CTMC run only.
+
+        Raises:
+            ValueError: [description]
+        """
         # concat all probabilities
         full_array = np.concatenate(
             (self.prob_infection, self.prob_recover), axis=0)
@@ -320,6 +337,7 @@ class Simulation():
         self.next_event_func = 'infection' if gt_rand[0][0] == 0 else 'recovery'
 
     def apply_on_all(self, seq, method, *args, **kwargs):
+        """Apply a method to all objects in a list (used on rooom and student list)"""
         for obj in getattr(self, seq):
             getattr(obj, method)(*args, **kwargs)
 
@@ -337,6 +355,7 @@ class Simulation():
         return np.array([student.latest_R for student in self.students])
 
     def generate_dataframes(self):
+        """generates the dataframes of the results to include in final results"""
         self.S_df = self.get_df(param='S')
         self.I_df = self.get_df(param='I')
         self.R_df = self.get_df(param='R')
@@ -351,6 +370,8 @@ class Simulation():
         # self.window_open_df, self.window_open_percentage = self.get_opening_open_df(opening='window')
 
     def get_df(self, param):
+        """generate dataframe of either S I R from self.students
+        This is probably quite a convoluted way of storing and manipulating the data."""
         try:
             df_idx = pd.MultiIndex.from_product([[self.sim_id], [
                                                 student.group_id for student in self.students]], names=['sim id', 'student group id'])
@@ -363,6 +384,8 @@ class Simulation():
         return df_tmp.loc[df_tmp.index < self.end_time]
 
     def get_opening_open_df(self, opening, in_school_only=True):
+        """ Extract from the self.rooms whether the doorways were open or not throughout the siimulation.
+        Also returns the mean length of time the doos were open."""
         try:
             df_idx = pd.MultiIndex.from_product(
                 [[self.sim_id], [room.room_id for room in self.rooms if room.room_type == 'classroom']], names=['sim id', 'room id'])
@@ -389,6 +412,7 @@ class Simulation():
 
 
     def plot_lambda(self):
+        """plot the infection rate thoughout the simulation"""
         fig = plt.figure()
         fig.autofmt_xdate()
         init_infection_idx = [x.I[0] for x in self.students].index(1)
@@ -414,6 +438,7 @@ class Simulation():
         del fig
 
     def plot_SIR(self):
+        """plot the change in S,I,R seperated by zone."""
         fig, ax = plt.subplots(1,3, figsize=(15,5))
         plt.suptitle(f'door fraction : {self.door_open_percentage:0.1%}')
         fig.autofmt_xdate()
@@ -447,6 +472,7 @@ class Simulation():
         del fig
 
     def plot_SIR_total(self):
+        """plot the total SIR for all classrooms"""
         fig = plt.figure()
         for i, X in enumerate(['S','I','R']):
             plt.step(getattr(self, f'{X}_df').index, getattr(self, f'{X}_df').sum(axis=1), where='post',
@@ -462,6 +488,7 @@ class Simulation():
         del fig
 
     def shade_school_time(self, ax):
+        """Will indicate the school time on a figure"""
         t_min = self.start_time.replace(
             hour=self.school_start.hour, minute=self.school_start.minute)
         t_max = self.start_time.replace(

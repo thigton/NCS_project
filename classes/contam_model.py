@@ -46,6 +46,13 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
           '''
 
     def run_simulation(self, verbose=False):
+        """ Updates all changes to .prj file.
+        Runs contam.
+        Imports flow rates and builds ventilation matrix
+
+        Args:
+            verbose (bool, optional): Defaults to False.
+        """
         if verbose:
             print(self)
         self.__update_prj_file()
@@ -55,6 +62,11 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         self.ventilation_matrix(verbose=verbose)
 
     def __run_contamX(self, verbose):
+        """runs CONTAM
+
+        Args:
+            verbose (bool): print extra information to console.
+        """
         output = subprocess.run([f"{self.contam_exe_dir}contamx3", f"{self.contam_dir}{self.project_name}.prj"],
                                 stderr=subprocess.STDOUT,
                                 stdout=subprocess.PIPE)
@@ -68,7 +80,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
                 print(line)
 
     def __run_simread(self, verbose):
-        """run simread to get the .lfr file output.
+        """run simread to get the .lfr file output (flow rates in a useable format).
         """
         if not self.simread_file_name:
             print('No simread parameter file linked. Creating default file simread_parameters.txt')
@@ -132,6 +144,14 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
                                             prj_file=self.prj_file)
 
     def set_initial_settings(self, weather, window_height):
+        """Sets the initial conditions for the simulation.
+        Use in all run scripts before run_simulation 
+        to ensure the .prj file starts in the same point.
+
+        Args:
+            weather (Weather): initial Weather conditions
+            window_height (float): initial window height.
+        """
         # set weather params in model
         self.set_environment_conditions(condition='wind_direction', value=weather.wind_direction,  units='deg')
         self.set_environment_conditions(condition='wind_speed', value=weather.wind_speed,  units='km/hr')
@@ -145,7 +165,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         self.set_all_flow_paths_of_type_to(search_type_term='oor',
                                                                 param_dict={'type': 4}
                                                                             )
-        self.set_big_vent_matrix_idx(idx=-1)
+        self.set_big_vent_matrix_idx(idx=-1) # All doors open
         corridor = self.get_all_zones_of_type(search_type_term='orridor')
         classrooms = self.get_all_zones_of_type(search_type_term='lassroom')
         for zone in corridor['Z#'].values:
@@ -155,6 +175,16 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
 
 
     def get_all_flow_paths_of_type(self, search_type_term,):
+        """Get all flow paths of type
+
+        Args:
+            search_type_term (string): useful string to search and find all airflow types
+                                    you want to change i.e. 'indow' -> 'Window' , 'oor' -> 'Door'.
+                                    requires clear naming in the CONTAM file!
+
+        Returns:
+            pd.Dataframe: all flow paths of type (either door or window)
+        """
         path_type_ids = self.airflow_path_types.df[self.airflow_path_types.df['name'].str.contains(search_type_term)]['id'].values
         return self.flow_paths.df[self.flow_paths.df['e#'].isin(path_type_ids)]
 
@@ -215,9 +245,22 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
                                             prj_file=self.prj_file)
 
     def get_all_zones_of_type(self, search_type_term,):
+        """Get all zones of type
+
+        Args:
+            search_type_term (string): useful string to search and find all airflow types
+                                    you want to change i.e. 'Classroom' or 'Corridor'
+                                    requires clear naming in the CONTAM file!
+
+        Returns:
+            pd.Dataframe: all zones of type.
+        """
         return self.zones.df[self.zones.df['name'].str.contains(search_type_term[1:])]
 
     def get_zone_temp_of_room_type(self, search_type_term):
+        """Get temperature of either the classrooms or the corridor.
+        NOTE: Limitation: Forces all the rooms of the same type to be the same temperature.
+        """
         zone_temperatures = self.get_all_zones_of_type(search_type_term)['T0']
         if zone_temperatures.nunique() != 1:
             raise ValueError(f'Not all {search_type_term}(s) have the same zone temperature. Error')
@@ -355,6 +398,16 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             print('Ventilation matrix produced...')
 
     def search_flow_paths(self, zone_row_idx, zone_col_idx=None):
+        """used in self.ventilation_matrix()
+        returns the flow paths associated with a zone and the flow rates
+
+        Args:
+            zone_row_idx (int): row in vent matrix (idx matches idx of self.zones.df)
+            zone_col_idx (int, optional): column. Defaults to None (i.e. if on the diagonal)
+
+        Returns:
+            pd.Dataframe: dataframe of all flow paths incl. flow rates associated with a zone.
+        """
         df = self.flow_paths.df
         zone_row = self.zones.df.loc[zone_row_idx, 'Z#']
         if zone_col_idx is not None:
@@ -369,6 +422,19 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             return paths.merge(right=self.flow_rate_df, right_index=True, left_on='merge P#')[['P#', 'n#','m#','F0 (kg/s)','F1 (kg/s)']]
 
     def choose_flow_rates(self, row, zone, into_zone=True):
+        """ used in self.ventialtion_matrix() 
+        given the flow paths and rates associated with the zone,
+        get the correct flow rate / sign for the position in the vent matrix.
+        Args:
+            row (pd.Series): series of a flow path
+            zone (int): zone id
+            into_zone (bool, optional): Whether for the location on the ventilation matrix
+            we are interested in the flow into or out of the zone. On diagonal, out of zone else into zone.
+            Defaults to True.
+
+        Returns:
+            (pd.Series or pd.DataFrame): all ventilation rates which should be summed to form value in that position of the matrix
+        """
         if (into_zone and row['m#'] == zone) or (not into_zone and row['n#'] == zone):
             # take the positive numbers
             return abs(row[['F0 (kg/s)', 'F1 (kg/s)']].max())
@@ -395,6 +461,12 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
 
 
     def generate_all_ventilation_matrices_for_all_door_open_close_combination(self, save=True):
+        """will generate all a list of all possible ventilation matrices by opening and closing the doors.
+        (12no. doors = 2**12 ventilation matrices).
+
+        Args:
+            save (bool, optional): to save or not to save. Defaults to True.
+        """
         # get all flow paths which are internal doors
         all_doors = self.get_all_flow_paths_of_type(search_type_term='oor')
         external_doors = all_doors[(all_doors['n#'] =='-1') | (all_doors['m#'] =='-1')]
@@ -414,6 +486,9 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             self.save_all_ventilation_matrices()
 
     def save_all_ventilation_matrices(self):
+        """Creates vent matrix storage object and saves it to a vent_mats folder in the contam_file directory.
+        NOTE: could create a log of vent matrices produced
+        """
         mat_obj = ContamVentMatrixStorage(self)
         fname = f'{mat_obj.date_init.strftime("%y%m%d_%H-%M")}_{self.project_name}.pickle'
         with open(f'{self.contam_dir}vent_mats/{fname}', 'wb') as pickle_out:
@@ -421,6 +496,12 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
 
 
     def get_window_height(self):
+        """return the window height used in the model.
+        NOTE: This is assumed to be the same for all windows
+
+        Returns:
+            float: window height
+        """
         all_window_heights = self.get_all_flow_paths_of_type(search_type_term='indow')['relHt']
         if len(all_window_heights.unique()) != 1:
             print('Not all windows are the same height. At the moment this is a problem.')
@@ -429,10 +510,18 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             return all_window_heights.unique()[0]
     
     def set_big_vent_matrix_idx(self, idx):
+        """Index of the current ventilation matrix in the simulation
+
+        Args:
+            idx (int): [description]
+        """
         self.big_vent_matrix_idx = idx
 
 
     def load_all_vent_matrices(self,):
+        """get all ventilation matrices for a particular set of environmental conditions.
+        If they don't exist, create them and save.
+        """
         window_height = self.get_window_height()
         Ta, _, Ws, Wd = self.environment_conditions.df.iloc[0,:4].values
         corridor_temp = self.get_zone_temp_of_room_type('corridor')
@@ -459,17 +548,31 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
     
     @property
     def door_open(self):
+        """The is the path type id in the .prj file for the door being open
+        """
         return 4
 
     @property
     def door_closed(self):
+        """The is the path type id in the .prj file for the door being closed
+        """
         return 3
 
 
 def int_to_binary_ref(i, string_width):
+    """integer to a binary string.
+
+    Args:
+        i (int): index in list of ventilation matrices
+        string_width (int or float): Length of the binary string (adding leading zeros)
+
+    Returns:
+        string: binary reference.
+    """
     return "{0:b}".format(i).zfill(string_width)
 
 def binary_ref_to_int(bin):
+    """inverse function of int_to_binary_ref"""
     return int(bin, 2)
 
 def split(string):
