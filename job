@@ -1,0 +1,35 @@
+#!/bin/bash
+# Job name
+#PBS -N test
+# Time required in hh:mm:ss
+#PBS -l walltime=24:00:00
+# Ressource requirements 
+#PBS -l select=1:ncpus=32:mem=32gb
+# Files to contain standard error and standard output
+#PBS -o stdout
+#PBS -e stderr
+
+echo Working Directory is $PBS_O_WORKDIR
+simname=test
+
+rm -f stdout* stderr* 
+
+# You can load the necessary modules here
+module load anaconda3/personal
+source activate $HOME/anaconda3/envs/py37
+
+echo Start time is `date` > date
+
+mkdir $EPHEMERAL/$simname
+cp -r $PBS_O_WORKDIR/* $EPHEMERAL/$simname/
+cp -r $HOME/contam/ $EPHEMERAL/$simname/
+cd $EPHEMERAL/$simname
+
+# Run python script here
+python run.py > output.txt
+
+conda deactivate
+
+# End time
+echo End time is `date` >> date
+
