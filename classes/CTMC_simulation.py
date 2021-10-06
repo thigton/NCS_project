@@ -367,7 +367,6 @@ class Simulation():
             # self.init_students_per_class - 1 - S_init_group) / (self.init_students_per_class - 1)
         if  'door' in self.opening_method:
             self.door_open_df, self.door_open_percentage = self.get_opening_open_df(opening='door')
-
         # self.window_open_df, self.window_open_percentage = self.get_opening_open_df(opening='window')
 
     def get_df(self, param):
@@ -382,31 +381,45 @@ class Simulation():
             df_tmp = df_tmp.T.resample(self.plotting_sample_rate).pad()
         except ValueError:
             breakpoint()
-        return df_tmp.loc[df_tmp.index < self.end_time]
+        return df_tmp.loc[df_tmp.index <= self.end_time]
 
     def get_opening_open_df(self, opening, in_school_only=True):
         """ Extract from the self.rooms whether the doorways were open or not throughout the siimulation.
         Also returns the mean length of time the doos were open."""
         try:
-            df_idx = pd.MultiIndex.from_product(
-                [[self.sim_id], [room.room_id for room in self.rooms if room.room_type == 'classroom']], names=['sim id', 'room id'])
-            df_tmp = pd.DataFrame(data=[getattr(room, f'{opening}_open') for room in self.rooms if room.room_type == 'classroom'],
-                                  index=df_idx,
+            df_tmp = pd.DataFrame(data=[getattr(room, f'{opening}_open') for room in self.rooms],
+                                  index=[room.room_id for room in self.rooms],
                                   columns=self.time)
-            df_tmp = df_tmp.T.resample(self.plotting_sample_rate).pad()
-            df_tmp = df_tmp.loc[df_tmp.index < self.end_time]
+            # df_tmp
+            df_tmp = df_tmp.T.apply(pd.Series.explode, axis=1)
+            df_tmp.columns = self.rename_duplicate_column_names(df_tmp)
+            df_tmp = (df_tmp.resample(self.plotting_sample_rate).pad()
+                            .loc[df_tmp.index <= self.end_time])
             if in_school_only:
                 in_school_series = pd.Series(data=self.in_school_track, index=self.time)
-                in_school_series = in_school_series.resample(self.plotting_sample_rate).pad()
-                in_school_series = in_school_series.loc[in_school_series.index < self.end_time]
-
+                in_school_series = (in_school_series.resample(self.plotting_sample_rate).pad()
+                                                    .loc[in_school_series.index <= self.end_time])
         except ValueError:
             breakpoint()
         return df_tmp, df_tmp[in_school_series.values].mean().mean()
 
+    def rename_duplicate_column_names(self, df):
+        cols=pd.Series(df.columns)
+        for dup in cols[cols.duplicated()].unique(): 
+            cols[cols[cols == dup].index.values.tolist()] = [f'{dup}.{i}' 
+                                                             if i != 0 
+                                                             else dup 
+                                                             for i in range(sum(cols == dup))]
+        return pd.MultiIndex.from_product(
+                    [[self.sim_id], cols], names=['sim id', 'room id'])
+
+
+
     @property
     def current_infection_risk(self):
         return (self.total_S - self.S_arr.sum()) / self.total_S
+    
+        
 
 
 ####################### plot methods ##############################
@@ -507,3 +520,4 @@ class Simulation():
         self.shade_school_time(ax=plt.gca())
         plt.show()
         plt.close()
+        

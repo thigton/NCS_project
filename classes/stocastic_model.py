@@ -1,11 +1,13 @@
+# pylint: disable=no-member
 from datetime import datetime
 import pandas as pd
-from datetime import datetime
+import numpy as np
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from classes.CTMC_simulation import Simulation
 from classes.DTMC_simulation import DTMC_simulation
 from savepdf_tex import savepdf_tex
+from classes.contam_model import binary_ref_to_int
 import concurrent.futures
 import gc
 
@@ -40,7 +42,7 @@ class StocasticModel():
         self.R_df = pd.DataFrame()
         self.risk = pd.DataFrame()
         self.inter_event_time = pd.DataFrame()
-        self.first_infection_group = pd.DataFrame()
+
 
 
     def run(self, results_to_track, parallel=False):
@@ -49,7 +51,7 @@ class StocasticModel():
             self.run_in_parallel(results_to_track)
         else:
             self.run_for_loop(results_to_track)
-            
+
     def run_in_parallel(self, results_to_track):
         """Runs the different simulations in parallel (across multiple cpus)"""
         with concurrent.futures.ProcessPoolExecutor(max_workers=32) as executor:
@@ -83,7 +85,7 @@ class StocasticModel():
         """
         sim_number, results_to_track = args_tuple
         print(f'Starting simulation {sim_number} of {self.consts["no_of_simulations"]}', end='\r')
-        
+
         results = defaultdict()
         sim = self.sim_method(sim_id=sim_number,
                          start_time=self.start_time,
@@ -101,14 +103,15 @@ class StocasticModel():
         # sim.plot_SIR_total()
         if 'door' in self.opening_method:
             results['door_open_fraction_actual'] = sim.door_open_percentage
+            results['door_open_df'] = sim.door_open_df
         for val in results_to_track:
             results[val] = getattr(sim, val)
         del sim
         return results
 
     def assign_results_as_attrs(self, results):
-        """Takes the results generator created when running the 
-        simulations and assigning the important data to 
+        """Takes the results generator created when running the
+        simulations and assigning the important data to
         atrributes of the stochastic model"""
         results_dic = defaultdict(list)
         for result in results:
@@ -179,6 +182,12 @@ class StocasticModel():
         # ax.fill_between(time, q_05, q_95, alpha=0.2, color=color)
 
     def percentage_of_infection_in_initial_room(self):
+        """Calculates the percentage of those who are infected, are 
+        in the same room as the initial infection.
+
+        Returns:
+            pd.DataFrame: index: time series, columns: number of simulations
+        """
         I_init_group = pd.concat([self.I_df.loc[:,(idx, val)] for idx, val in enumerate(self.first_infection_group)],
                                              axis=1)
         R_init_group = pd.concat([self.R_df.loc[:,(idx, val)] for idx, val in enumerate(self.first_infection_group)],
@@ -186,7 +195,37 @@ class StocasticModel():
         I_init_group = I_init_group.droplevel(level=1, axis=1)
         R_init_group = R_init_group.droplevel(level=1, axis=1)
         return (I_init_group + R_init_group) / (self.I_sum + self.R_sum)
-    
+
+    def get_ventilation_rates_from_door_open_df_retropectively(self):
+        """Calculate the total and fresh ventilation rate retrospectively from 
+        the door_open_df
+        
+        """
+        def agg_func(df):
+            return df.apply(''.join, axis=1)
+        vent_mat_idx_df = (self.door_open_df.astype(int)
+                               .astype(str)
+                               .groupby(level='sim id', axis=1)
+                               .agg(agg_func)
+                               .applymap(binary_ref_to_int))
+        col_names = pd.MultiIndex.from_product([vent_mat_idx_df.columns, self.contam_model.zones.df['Z#']], names=['sim id', 'room id'])
+        
+        def get_vent_by_zone_from_vent_matrices_idx(x, fresh=True):
+            vent_mat = self.contam_model.all_door_matrices[x]
+            if fresh:
+                return 0 - vent_mat.sum(axis=1)
+            else: # assume total ventilation rate wanted
+                return 0 - vent_mat.sum(axis=1, where=vent_mat<=0)
+        self.fresh_vent_t_series = (vent_mat_idx_df
+                                    .applymap(lambda x :get_vent_by_zone_from_vent_matrices_idx(x, fresh=True))
+                                    .apply(pd.Series.explode, axis=1))
+        self.fresh_vent_t_series.columns = col_names
+        self.total_vent_t_series = (vent_mat_idx_df
+                                    .applymap(lambda x :get_vent_by_zone_from_vent_matrices_idx(x, fresh=False))
+                                    .apply(pd.Series.explode, axis=1))
+        self.total_vent_t_series.columns = col_names
+
+
     @property
     def S_sum(self):
         return self.S_df.groupby(level='sim id', axis=1).sum()
@@ -204,6 +243,40 @@ class StocasticModel():
         df = self.first_infection_group if 'first_infection_group' in kwargs else self.risk
         date_time = self.start_time + time
         return df.loc[date_time].values
+
+    def get_risk_at_time_x_in_classrooms(self, time):
+        date_time = self.start_time + time
+        classroom_ids = self.contam_model.get_all_zones_of_type('classroom')['Z#']
+        S0 = self.S_df.loc[self.start_time, pd.IndexSlice[:, classroom_ids]]
+        S_t = self.S_df.loc[date_time, pd.IndexSlice[:, classroom_ids]]
+        self.risk_by_room =  (S0 - S_t) / S0
+
+    def plot_risk_vs_ave_fresh_ventilation(self, ax, compare, incl_init_group=False, ):
+        classroom_ids = self.contam_model.get_all_zones_of_type('classroom')['Z#']
+        vent = (self.fresh_vent_t_series.mean(axis=0)
+                                        .loc[pd.IndexSlice[:, classroom_ids]])
+        df = pd.concat([vent, self.risk_by_room], axis=1)
+        df.columns = ['Q_mean', 'risk']
+        if not incl_init_group:
+            df.drop([(sim_id, room) for sim_id, room in enumerate(self.first_infection_group)],
+                    axis=0, inplace=True)
+        windward_rooms = ['1','2','3','4','5']
+        leeward_rooms = ['7','8','9','10','11']
+        windward_mean = df.loc[pd.IndexSlice[:, windward_rooms],:].groupby(level=0, axis=0).mean()
+        leeward_mean = df.loc[pd.IndexSlice[:, leeward_rooms],:].groupby(level=0, axis=0).mean()
+        color = next(ax._get_lines.prop_cycler)['color']
+        
+        ax.scatter(windward_mean.loc[windward_mean['risk']>0.0,'Q_mean'],
+                   windward_mean.loc[windward_mean['risk']>0.0,'risk'],
+                   marker='*',
+                   color=color,
+                   label = f'{self.consts[compare]}')
+        ax.scatter(leeward_mean.loc[leeward_mean['risk']>0.0,'Q_mean'],
+                   leeward_mean.loc[leeward_mean['risk']>0.0,'risk'],
+                   marker='D',
+                   color=color,
+                   label = f'{self.consts[compare]}')
+
 
 
 if __name__ == '__main__':

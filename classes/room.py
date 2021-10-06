@@ -8,6 +8,7 @@ class Room():
         self.door_open = []
         self.window_open = []
         self.infectivity_rate = 0
+        # self.ventilation_rate = 
 
     def __repr__(self):
         return f"""Room id: {self.room_id}
