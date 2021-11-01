@@ -26,11 +26,15 @@ try:
                        Do you want to continue to append the new log? [Y/N]''')
     else:
         answer ='y'
+    if 'model' not in master.columns:
+        master = master.reset_index().rename(columns={'index':'model'})
+        
 
 except FileNotFoundError:
     master = pd.DataFrame()
     answer = 'y'
     
 if 'y' in answer.lower():
-    master = master.append(model_log, verify_integrity=True)
+    model_log = model_log.reset_index().rename(columns={'index':'model'})
+    master = master.append(model_log, verify_integrity=True, sort=False, ignore_index=True)    
     master.to_csv(f'{os.path.dirname(os.path.realpath(__file__))}/results/model_log.csv')

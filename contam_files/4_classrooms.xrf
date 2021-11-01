@@ -1,0 +1,29 @@
+File: /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/4_classrooms.sim
+
+Results available
+  from 1/4 08:55:00
+  thru 1/4 08:55:00
+
+0 nodes  (ambient, 5 zones, 0 junctions)
+10 links  (10 paths, 0 ducts, 0 other)
+
+Cross reference data:
+SIM data     PRJ data
+Node   0  =  Ambient
+Node   1  =  zone   1
+Node   2  =  zone   2
+Node   3  =  zone   3
+Node   4  =  zone   4
+Node   5  =  zone   5
+
+Link   1  =  path   1
+Link   2  =  path   2
+Link   3  =  path   3
+Link   4  =  path   4
+Link   5  =  path   5
+Link   6  =  path   6
+Link   7  =  path   7
+Link   8  =  path   8
+Link   9  =  path   9
+Link  10  =  path  10
+10 links  (10 paths, 0 ducts, 0 terminals, 0 leaks)

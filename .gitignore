@@ -8,3 +8,4 @@
 *.zip
 *.gif
 */write_up/*
+.venv_stochastic_model/*

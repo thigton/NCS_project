@@ -1,17 +1,17 @@
 Program:  /home/tdh17/contam-x-3.4.0.0-Linux-64bit/contamx3
   Version:  3.4.0.0 release 64 bit
   Compiler: GCC 70500
-Project (_file_name):  /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/school_corridor.prj
+Project (_file_name):  /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/4_classrooms.prj
 cwd: /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model
-prj arg = /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/school_corridor.prj
-_pdrive , _pdir /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/, _prjname school_corridor, _pext .prj
+prj arg = /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/4_classrooms.prj
+_pdrive , _pdir /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/, _prjname 4_classrooms, _pext .prj
 
 Calling arguments (2):
 	argv[0] = /home/tdh17/contam-x-3.4.0.0-Linux-64bit/contamx3
-	argv[1] = /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/school_corridor.prj
-Running ContamX 3.4.0.0 on /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/school_corridor.prj
+	argv[1] = /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/4_classrooms.prj
+Running ContamX 3.4.0.0 on /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/4_classrooms.prj
 
-Reading project file: /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/school_corridor.prj
+Reading project file: /home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/4_classrooms.prj
 Run Control section read successfully.
 Speices section read successfully.
 Level section read successfully.
@@ -37,24 +37,24 @@ Occupant Day Schedule section read successfully.
 Occupant Exposure section read successfully.
 Note section read successfully.
 Creating Envelope path lists:
-  12 envelope paths|terminals for WPC
+  6 envelope paths|terminals for WPC
 0 Duct Networks
       network # 0 - jctns:
 
-  12 envelope paths|terminals|leaks for CSM/CEX
-Read PRJ : 46892 bytes allocated, 14068 freed, 32824 net
+  6 envelope paths|terminals|leaks for CSM/CEX
+Read PRJ : 46308 bytes allocated, 13772 freed, 32536 net
 Number of --
       contaminants:    2
-     day schedules:    3
-    week schedules:    3
+     day schedules:    4
+    week schedules:    4
            filters:    0
          reactions:    0
      wind profiles:    2
    source elements:    1
      flow elements:    6
-     airflow nodes:   12
-     airflow paths:   22
-      source/sinks:    1
+     airflow nodes:    6
+     airflow paths:   10
+      source/sinks:    0
 Airflow control --
    cnvgSS: 1
    tsdens: 0
@@ -63,37 +63,31 @@ Airflow control --
    dodMdt: 0
 
 Airflow Equations:
-  11 variable pressure nodes
+   5 variable pressure nodes
    1 constant pressure nodes
-  Number of equations: 12
-    Non-zero elements: 32
-Initial fill fraction: 0.222
+  Number of equations: 6
+    Non-zero elements: 14
+Initial fill fraction: 0.389
  Matrix Profile Analysis:
-      Average Profile: 1.82
-            Bandwidth: 5
+      Average Profile: 1.00
+            Bandwidth: 2
 
-+---------+---
-|*    *      |
-| *   *      |
-|  *  *      |
-|   * *      |
-|    **      |
-|*********** |
-|     **++++ |
-|     *+*+++ |
-|     *++*++ |
-+     *+++*+ +
-|     *++++* |
-|           *|
-+---------+---
++-------
+|* *   |
+| **   |
+|***** |
+|  **+ |
+|  *+* |
+|     *|
++-------
 
-12 by 12 matrix, 32 non-zeroes, 20 fill
+6 by 6 matrix, 14 non-zeroes, 2 fill
 
  Skyline Matrix:
-     Number of rows: 11
-     Lower Triangle: 20 elements
+     Number of rows: 5
+     Lower Triangle: 5 elements
      Upper Triangle: 0 elements
-     Fill fraction: 0.256
+     Fill fraction: 0.400
 Solve nonlinear equations by Newton-Raphson with variable trust region.
   relcnvg = 1e-05, abscnvg = 2e-06, itmax = 30
 Solve Jacobian SLAE by symmetric SKYline method.
@@ -105,38 +99,30 @@ Airflow calculation data:
     3 :    3z :    3
     4 :    4z :    4
     5 :    5z :    5
-    6 :    6z :    6
-    7 :    7z :    7
-    8 :    8z :    8
-    9 :    9z :    9
-   10 :   10z :   10
-   11 :   11z :   11
-   12 :    0z :   12
+    6 :    0z :    6
   [z = zone, j = junction, t = terminal]
  Link numbers vs. path & duct numbers:
     1 -   10:    1p    2p    3p    4p    5p    6p    7p    8p    9p   10p
-   11 -   20:   11p   12p   13p   14p   15p   16p   17p   18p   19p   20p
-   21 -   30:   21p   22p
   [p = path, d = duct, t = terminal, l = leak]
-Arrays: 50644 bytes allocated, 16540 freed, 34104 net
-Start: 50820 bytes allocated, 16716 freed, 34104 net
+Arrays: 49340 bytes allocated, 16004 freed, 33336 net
+Start: 49420 bytes allocated, 16084 freed, 33336 net
 Running steady-state initialization:
- DATE: Jan01   time: 00:00:00
+ DATE: Jan04   time: 08:55:00
 End Steady-state Initialization
-       7 calls to FillAf()
-       3 calls to luf_sky_s()
+       8 calls to FillAf()
+       4 calls to luf_sky_s()
 
        0 time steps
        4 calls to SolveAf()
-       7 calls to FillAf()
-       3 calls to luf_sky_s()
-       3 calls to lus_sky_s()
+       8 calls to FillAf()
+       4 calls to luf_sky_s()
+       4 calls to lus_sky_s()
 
-NR its. :    0    1    2
-JfacBins:    3    0    1
+NR its. :    0    1    2    3
+JfacBins:    3    0    0    1
 
 rangeDWC: 0 lam, 0 trns, 0 turbulent
 
-End: 50820 bytes allocated, 16716 freed, 34104 net
-Final: 50820 bytes allocated, 50820 freed, 0 net
+End: 49420 bytes allocated, 16084 freed, 33336 net
+Final: 49420 bytes allocated, 49420 freed, 0 net
 Simulation completed successfully.

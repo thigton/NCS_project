@@ -14,13 +14,13 @@ args = parser.parse_args()
 DATA_LOC = f'{os.path.dirname(os.path.realpath(__file__))}/results'
 
 try:
-    model_log = pd.read_csv(f'{DATA_LOC}/model_log.csv',index_col=0)
+    model_log = pd.read_csv(f'{DATA_LOC}/model_log.csv', index_col=0)
 except FileNotFoundError:
     print('File not found. check spelling?')
 model_log.loc[model_log['run name'] == args.run_name, ['backed up']] = True
 
 
-FILES_TO_MOVE_TO_EXT_DRIVE = model_log[model_log['run name'] == args.run_name].index
+FILES_TO_MOVE_TO_EXT_DRIVE = model_log.loc[model_log['run name'] == args.run_name, 'model']
 DRIVE = f'/mnt/usb-WD_Elements_2620_575832314441394E37445032-0:0-part1/NCS Project/stochastic_model/results'
 for FILE in FILES_TO_MOVE_TO_EXT_DRIVE:
     print(f'Moving file: {FILE}')
@@ -32,7 +32,6 @@ for FILE in FILES_TO_MOVE_TO_EXT_DRIVE:
     except FileNotFoundError as e:
         print(e)
         print(f'file : {FILE}.pickle not found. Has it already been transferred to the external harddrive?')
-
 
 model_log.to_csv(f'{os.path.dirname(os.path.realpath(__file__))}/results/model_log.csv')
 
