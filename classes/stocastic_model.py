@@ -7,15 +7,15 @@ from collections import defaultdict
 from classes.CTMC_simulation import Simulation
 from classes.DTMC_simulation import DTMC_simulation
 from savepdf_tex import savepdf_tex
-from classes.contam_model import binary_ref_to_int
+from classes.contam_model import binary_ref_to_int, celciusToKelvin, kilometresPerHourToMetresPerSecond, PerHourToPerSecond
 import concurrent.futures
 import gc
 
 class StocasticModel():
     def __init__(self, weather, contam_details,
-                simulation_constants,
-                contam_model, opening_method=None, movement_method=None,
-                method='CTMC',
+                 simulation_constants,
+                 contam_model, opening_method=None, movement_method=None,
+                 method='CTMC',
                 ):
 
         self.weather = weather
@@ -43,8 +43,6 @@ class StocasticModel():
         self.risk = pd.DataFrame()
         self.inter_event_time = pd.DataFrame()
 
-
-
     def run(self, results_to_track, parallel=False):
         """main run function which is actually called from run script."""
         if parallel:
@@ -56,7 +54,8 @@ class StocasticModel():
         """Runs the different simulations in parallel (across multiple cpus)"""
         with concurrent.futures.ProcessPoolExecutor(max_workers=32) as executor:
             results = executor.map(self.run_base_routine,
-                                   [(x, results_to_track) for x in range(self.consts['no_of_simulations'])])
+                                   [(x, results_to_track) for x in
+                                    range(self.consts['no_of_simulations'])])
             # for r in executor.map(
         #         func, [x[i:i + 1] for i in range(n)], chunksize=100):
         results_dic = self.assign_results_as_attrs(results)
@@ -65,7 +64,7 @@ class StocasticModel():
         del results
         gc.collect()
 
-    def run_for_loop(self,results_to_track):
+    def run_for_loop(self, results_to_track):
         """Run script if onnly using a single cpu."""
         def run_generator(no_of_simulations, results_to_track):
             for sim_number in range(no_of_simulations):
@@ -81,18 +80,19 @@ class StocasticModel():
         """actual run routine of each simulation, including some results extraction
 
         Args:
-            results_to_track (list<str>): options: S_df, I_df, R_df, risk, inter_event_time, first_infection_group
+            results_to_track (list<str>): options: S_df, I_df, R_df, risk,
+            inter_event_time, first_infection_group
         """
         sim_number, results_to_track = args_tuple
         print(f'Starting simulation {sim_number} of {self.consts["no_of_simulations"]}', end='\r')
 
         results = defaultdict()
         sim = self.sim_method(sim_id=sim_number,
-                         start_time=self.start_time,
-                         simulation_constants = self.consts,
-                         contam_model=self.contam_model,
-                         opening_method= self.opening_method,
-                         movement_method = self.movement_method
+                              start_time=self.start_time,
+                              simulation_constants = self.consts,
+                              contam_model=self.contam_model,
+                              opening_method= self.opening_method,
+                              movement_method = self.movement_method
                         )
         sim.run()
         sim.generate_dataframes()
@@ -115,18 +115,29 @@ class StocasticModel():
         atrributes of the stochastic model"""
         results_dic = defaultdict(list)
         for result in results:
-            for k, v in result.items():
-                results_dic[k].append(v)
-        for k,v in results_dic.items():
-            if k in ['door_open_fraction_actual', 'window_open_fraction_actual',
+            for key, v in result.items():
+                results_dic[key].append(v)
+        for key, v in results_dic.items():
+            if key in ['door_open_fraction_actual', 'window_open_fraction_actual',
                      'first_infection_group']:
-                setattr(self, k, v)
+                setattr(self, key, v)
             else:
-                axis = 0 if k == 'inter_event_time' else 1
-                setattr(self, k, pd.concat(results_dic[k], axis=axis))
-                getattr(self, k).fillna(axis=0, inplace=True, method='ffill')
+                axis = 0 if key == 'inter_event_time' else 1
+                setattr(self, key, pd.concat(results_dic[key], axis=axis))
+                getattr(self, key).fillna(axis=0, inplace=True, method='ffill')
         del results
         return results_dic
+
+    @property
+    def froude_number(self):
+        """Froude number current length scale is the height of the windows [1 metre.]
+        """
+        u = kilometresPerHourToMetresPerSecond(self.weather.wind_speed)
+        g = 9.81 # ms^-2
+        T_class = celciusToKelvin(self.contam_model.get_zone_temp_of_room_type('classroom'))
+        T_amb = celciusToKelvin(self.weather.ambient_temp)
+        window_extent = self.contam_model.get_window_dimensions(which='height')
+        return u / (g*(T_class-T_amb)/T_amb * window_extent)**0.5
 
     def plot_SIR(self, ax, ls, comparison=None, **kwargs):
         """Plot mean SIR of all simulations"""
@@ -182,7 +193,7 @@ class StocasticModel():
         # ax.fill_between(time, q_05, q_95, alpha=0.2, color=color)
 
     def percentage_of_infection_in_initial_room(self):
-        """Calculates the percentage of those who are infected, are 
+        """Calculates the percentage of those who are infected, are
         in the same room as the initial infection.
 
         Returns:
@@ -196,34 +207,42 @@ class StocasticModel():
         R_init_group = R_init_group.droplevel(level=1, axis=1)
         return (I_init_group + R_init_group) / (self.I_sum + self.R_sum)
 
-    def get_ventilation_rates_from_door_open_df_retropectively(self):
-        """Calculate the total and fresh ventilation rate retrospectively from 
+    def get_ventilation_rates_from_door_open_df_retropectively(self, school_time_only=False):
+        """Calculate the total and fresh ventilation rate retrospectively from
         the door_open_df
-        
+
         """
+        if school_time_only:
+            filt = ((self.door_open_df.index.time >= self.consts['school_start']) &
+                    (self.door_open_df.index.time < self.consts['school_end']) &
+                    self.door_open_df.index.weekday.isin([0,1,2,3,4]))
+        else:
+            filt = [True]*len(self.door_open_df)
         def agg_func(df):
             return df.apply(''.join, axis=1)
-        vent_mat_idx_df = (self.door_open_df.astype(int)
+        vent_mat_idx_df = (self.door_open_df[filt].astype(int)
                                .astype(str)
                                .groupby(level='sim id', axis=1)
                                .agg(agg_func)
                                .applymap(binary_ref_to_int))
-        col_names = pd.MultiIndex.from_product([vent_mat_idx_df.columns, self.contam_model.zones.df['Z#']], names=['sim id', 'room id'])
         
+        col_names = pd.MultiIndex.from_product([vent_mat_idx_df.columns, self.contam_model.zones.df['Z#']], names=['sim id', 'room id'])
+
         def get_vent_by_zone_from_vent_matrices_idx(x, fresh=True):
             vent_mat = self.contam_model.all_door_matrices[x]
             if fresh:
                 return 0 - vent_mat.sum(axis=1)
             else: # assume total ventilation rate wanted
-                return 0 - vent_mat.sum(axis=1, where=vent_mat<=0)
+                return 0 - vent_mat.sum(axis=1, where=vent_mat <= 0)
         self.fresh_vent_t_series = (vent_mat_idx_df
-                                    .applymap(lambda x :get_vent_by_zone_from_vent_matrices_idx(x, fresh=True))
+                                    .applymap(lambda x: get_vent_by_zone_from_vent_matrices_idx(x, fresh=True))
                                     .apply(pd.Series.explode, axis=1))
         self.fresh_vent_t_series.columns = col_names
-        self.total_vent_t_series = (vent_mat_idx_df
-                                    .applymap(lambda x :get_vent_by_zone_from_vent_matrices_idx(x, fresh=False))
+        total_vent_t_series = (vent_mat_idx_df
+                                    .applymap(lambda x: get_vent_by_zone_from_vent_matrices_idx(x, fresh=False))
                                     .apply(pd.Series.explode, axis=1))
-        self.total_vent_t_series.columns = col_names
+        self.exchange_vent_t_series = total_vent_t_series.subtract(self.fresh_vent_t_series.values)
+        self.exchange_vent_t_series.columns = col_names
 
 
     @property
@@ -249,33 +268,67 @@ class StocasticModel():
         classroom_ids = self.contam_model.get_all_zones_of_type('classroom')['Z#']
         S0 = self.S_df.loc[self.start_time, pd.IndexSlice[:, classroom_ids]]
         S_t = self.S_df.loc[date_time, pd.IndexSlice[:, classroom_ids]]
-        self.risk_by_room =  (S0 - S_t) / S0
+        return  (S0 - S_t) / S0
 
-    def plot_risk_vs_ave_fresh_ventilation(self, ax, compare, incl_init_group=False, ):
-        classroom_ids = self.contam_model.get_all_zones_of_type('classroom')['Z#']
-        vent = (self.fresh_vent_t_series.mean(axis=0)
-                                        .loc[pd.IndexSlice[:, classroom_ids]])
-        df = pd.concat([vent, self.risk_by_room], axis=1)
-        df.columns = ['Q_mean', 'risk']
+    def get_timescale_ratio_in_each_classroom(self, Q):
+        classroom = self.contam_model.get_all_zones_of_type('classroom')
+        classroom_ids = classroom['Z#']
+
+        vent = pd.concat([getattr(self, Q).mean(axis=0)
+                        .loc[pd.IndexSlice[:, classroom_ids]],
+                        getattr(self, Q).std(axis=0)
+                        .loc[pd.IndexSlice[:, classroom_ids]]],
+                     axis=1)
+        vent = (vent.reset_index()
+            .merge(right=classroom[['Z#', 'Vol']], how='left',
+                   left_on='room id', right_on='Z#')
+            .set_index(['sim id', 'room id']))
+        vent.rename(columns={0:'Q_mean', 1 : 'Q_std'}, inplace=True)
+
+        vent['Q_mean'] = vent['Q_mean']/(vent['Vol'].astype(float)* self.consts['quanta_gen_rate'])
+        vent['Q_std'] = vent['Q_std']/(vent['Vol'].astype(float)* self.consts['quanta_gen_rate'])
+        return vent[['Q_mean', 'Q_std']]
+
+
+    def ave_risk_and_timescales_df(self, time_to_get_results, incl_init_group=False, windward_grouping=True):
+        risk = self.get_risk_at_time_x_in_classrooms(time_to_get_results)
+        vent_fresh = self.get_timescale_ratio_in_each_classroom(Q='fresh_vent_t_series')
+        vent_exchange = self.get_timescale_ratio_in_each_classroom(Q='exchange_vent_t_series')
+        df = pd.concat([vent_fresh, vent_exchange, risk], axis=1)
+        del vent_fresh, vent_exchange, risk
+        df.columns = ['Q_mean', 'Q_std', 'Q_mean_ex', 'Q_std_ex', 'risk']
         if not incl_init_group:
             df.drop([(sim_id, room) for sim_id, room in enumerate(self.first_infection_group)],
                     axis=0, inplace=True)
-        windward_rooms = ['1','2','3','4','5']
-        leeward_rooms = ['7','8','9','10','11']
-        windward_mean = df.loc[pd.IndexSlice[:, windward_rooms],:].groupby(level=0, axis=0).mean()
-        leeward_mean = df.loc[pd.IndexSlice[:, leeward_rooms],:].groupby(level=0, axis=0).mean()
-        color = next(ax._get_lines.prop_cycler)['color']
-        
-        ax.scatter(windward_mean.loc[windward_mean['risk']>0.0,'Q_mean'],
-                   windward_mean.loc[windward_mean['risk']>0.0,'risk'],
-                   marker='*',
-                   color=color,
-                   label = f'{self.consts[compare]}')
-        ax.scatter(leeward_mean.loc[leeward_mean['risk']>0.0,'Q_mean'],
-                   leeward_mean.loc[leeward_mean['risk']>0.0,'risk'],
-                   marker='D',
-                   color=color,
-                   label = f'{self.consts[compare]}')
+        if windward_grouping:
+            windward_rooms = ['1', '2', '3', '4', '5']
+            leeward_rooms = ['7', '8', '9', '10', '11']
+
+            df.loc[pd.IndexSlice[:, windward_rooms],'windward'] = True
+            df.loc[pd.IndexSlice[:, leeward_rooms],'windward'] = False
+            return df.groupby([df.index.names[0],'windward']).mean()
+        else:
+            return df
+
+        # breakpoint()
+        # .groupby(level=0, axis=0).mean()
+        # leeward_mean = df.loc[pd.IndexSlice[:, leeward_rooms],:].groupby(level=0, axis=0).mean()
+
+    # def plot_risk_vs_ave_fresh_ventilation(self, ax, compare, incl_init_group=False, ):
+    #     self.ave_risk_and_timescales_df(incl_init_group)
+    #     # color = next(ax._get_lines.prop_cycler)['color']
+
+    #     ax.scatter(windward_mean.loc[:,'Q_mean'],
+    #                windward_mean.loc[:,'risk'],
+    #                marker='.',
+    #                color='k',
+    #                )
+    #     ax.scatter(leeward_mean.loc[:,'Q_mean'],
+    #                leeward_mean.loc[:,'risk'],
+    #                marker='x',
+    #                color='k',
+    #                )
+
 
 
 

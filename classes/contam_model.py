@@ -166,8 +166,8 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
                                                                 param_dict={'type': 4}
                                                                             )
         self.set_big_vent_matrix_idx(idx=-1) # All doors open
-        corridor = self.get_all_zones_of_type(search_type_term='orridor')
-        classrooms = self.get_all_zones_of_type(search_type_term='lassroom')
+        corridor = self.get_all_zones_of_type(search_type_term='corridor')
+        classrooms = self.get_all_zones_of_type(search_type_term='classroom')
         for zone in corridor['Z#'].values:
             self.set_zone_temperature(zone=zone, value=19.0)
         for zone in classrooms['Z#'].values:
@@ -496,7 +496,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
 
 
     def get_window_height(self):
-        """return the window height used in the model.
+        """return the window height above the floor used in the model.
         NOTE: This is assumed to be the same for all windows
 
         Returns:
@@ -508,6 +508,24 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             exit()
         else:
             return all_window_heights.unique()[0]
+        
+    def get_window_dimensions(self, which):
+        """return the distance between the top and bottom of the window
+        NOTE: This is assumed to be the same for all windows
+
+        Returns:
+            float: window height
+        """
+        dic = {'height': 'ht', 'width' : 'wd'}
+        all_window_types = self.get_all_flow_paths_of_type(search_type_term='indow')['e#']
+        def match_to_airflow_type_df(typ, typ_df, dim):
+            return typ_df.loc[typ_df['id'] == typ, dim]
+        extents = all_window_types.apply(lambda x: match_to_airflow_type_df(x, self.airflow_path_types.df, dic[which]))
+        if len(extents[0].unique()) != 1:
+            print(f'Not all windows have the same {which}. At the moment this is a problem.')
+            exit()
+        else:
+            return float(extents[0].unique()[0])
     
     def set_big_vent_matrix_idx(self, idx):
         """Index of the current ventilation matrix in the simulation
@@ -600,6 +618,9 @@ def kilogramPerSecondToMetresCubedPerHour(Q):
 def kilogramPerSecondToLitresPerSecond(Q):
     air_density = 1.204
     return Q / air_density * 1e3
+
+def PerHourToPerSecond(Q):
+    return Q / 60**2
 
 if __name__ == '__main__':
     contam_model_details = {'exe_dir': '/home/tdh17/contam-x-3.4.0.0-Linux-64bit/',

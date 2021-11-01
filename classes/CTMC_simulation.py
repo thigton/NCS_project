@@ -133,12 +133,16 @@ class Simulation():
                 doors_open = X < self.door_open_fraction
             elif opening_method == 'internal_doors_only_random':
                 internal_doors_paths = all_doors[(all_doors['n#'] !='-1') & (all_doors['m#'] !='-1')]['P#'].values
-                # X = np.random.rand(len(internal_doors))
-                # doors_open = X < self.door_open_fraction
-                # idx = self.contam_model.external_door_matrix_idx
                 def insert_external_doors(row, internal_doors_paths):
                     X = random.random()
                     return X < self.door_open_fraction if row['P#'] in internal_doors_paths else True
+                doors_open = all_doors.apply(lambda x: insert_external_doors(x, internal_doors_paths),
+                                             axis=1).values
+            elif opening_method == 'external_doors_closed':
+                internal_doors_paths = all_doors[(all_doors['n#'] !='-1') & (all_doors['m#'] !='-1')]['P#'].values
+                def insert_external_doors(row, internal_doors_paths):
+                    X = random.random()
+                    return X < self.door_open_fraction if row['P#'] in internal_doors_paths else False
                 doors_open = all_doors.apply(lambda x: insert_external_doors(x, internal_doors_paths),
                                              axis=1).values
 
