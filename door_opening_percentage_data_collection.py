@@ -1,4 +1,4 @@
-"""Run script: looking into door opening percentage 
+"""Run script: looking into door opening percentage
 """
 # pylint: disable=no-member
 from datetime import time, timedelta, datetime
@@ -17,15 +17,16 @@ model_log = uf.load_model_log(
 save = True
 wind_dir = 90.0
 door_opening_fraction = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-wind_speeds = [5.0, 15.0, ]
+wind_speeds = [5.0, 15.0,]
 amb_temps = [5.0, 10.0]
+window_multiplier = 2.0
 time_to_get_results = timedelta(days=5)
 # contam_model_details = {'exe_dir': '/home/tdh17/contam-x-3.4.0.0-Linux-64bit/',
 #                         'prj_dir': '/home/tdh17/Documents/BOX/NCS Project/models/stochastic_model/contam_files/',
 #                         'name': '4_classrooms'}
 contam_model_details = {'exe_dir': f'{os.path.dirname(os.path.realpath(__file__))}/contam/',
                         'prj_dir': f'{os.path.dirname(os.path.realpath(__file__))}/contam_files/',
-                        'name': '6_classrooms'}
+                        'name': 'school_corridor'}
 
 # init contam model
 contam_model = ContamModel(contam_exe_dir=contam_model_details['exe_dir'],
@@ -60,17 +61,12 @@ for amb_temp in amb_temps:
                 wind_speed=wind_speed, wind_direction=wind_dir, ambient_temp=amb_temp)
 
             contam_model.set_initial_settings(
-                weather_params, window_height=1.0)
-            # corridor = contam_model.get_all_zones_of_type(
-            # search_type_term='corridor')
+                weather_params, window_height=1.0, window_multiplier=window_multiplier)
             # temp = corridor_temp - door*(corridor_temp - amb_temp)
-            # for zone in corridor['Z#'].values:
-            #     contam_model.set_zone_temperature(zone, temp)
-            contam_model.generate_all_ventilation_matrices_for_all_door_open_close_combination()
+            # for zone in contam_model.get_all_zones_of_type(search_type_term='corridor')['Z#'].values:
+            #     contam_model.set_zone_temperature(zone, corridor_temp)
+            # contam_model.generate_all_ventilation_matrices_for_all_door_open_close_combination()
             contam_model.load_all_vent_matrices()
-            # if not contam_model.all_door_matrices:
-            # run contam simulation
-            # contam_model.run_simulation(verbose=True)
             model = StocasticModel(weather=weather_params,
                                    contam_details=contam_model_details,
                                    simulation_constants=simulation_constants,

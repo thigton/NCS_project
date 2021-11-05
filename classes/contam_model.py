@@ -143,9 +143,9 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
                                             first_column_name='P#',
                                             prj_file=self.prj_file)
 
-    def set_initial_settings(self, weather, window_height):
+    def set_initial_settings(self, weather, window_height, window_multiplier):
         """Sets the initial conditions for the simulation.
-        Use in all run scripts before run_simulation 
+        Use in all run scripts before run_simulation
         to ensure the .prj file starts in the same point.
 
         Args:
@@ -153,13 +153,14 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             window_height (float): initial window height.
         """
         # set weather params in model
-        self.set_environment_conditions(condition='wind_direction', value=weather.wind_direction,  units='deg')
-        self.set_environment_conditions(condition='wind_speed', value=weather.wind_speed,  units='km/hr')
-        self.set_environment_conditions(condition='ambient_temp', value=weather.ambient_temp,  units='C')
+        self.set_environment_conditions(condition='wind_direction', value=weather.wind_direction, units='deg')
+        self.set_environment_conditions(condition='wind_speed', value=weather.wind_speed, units='km/hr')
+        self.set_environment_conditions(condition='ambient_temp', value=weather.ambient_temp, units='C')
         # ensure all windows are the same height and the right type
         self.set_all_flow_paths_of_type_to(search_type_term='indow',
                                                                 param_dict={'opening_height': window_height,
-                                                                            'type': 1}
+                                                                            'type': 1,
+                                                                            'multiplier': window_multiplier}
                                                                             )
         # ensure all doorways are open at the start
         self.set_all_flow_paths_of_type_to(search_type_term='oor',
@@ -220,11 +221,11 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         """
         if not isinstance(path, int) or not str(path).isnumeric():
             raise TypeError('Path should be referenced by either an integer or a string of an integer')
-        elif param not in ['type', 'opening_height']:
-            raise ValueError('Only type or opening_height accepted in the param argument')
-        elif param == 'opening_height' and not isinstance(value, float):
+        elif param not in ['type', 'opening_height', 'multiplier']:
+            raise ValueError('Only type, opening_height or multiplier accepted in the param argument')
+        elif param in ['opening_height', 'multiplier'] and not isinstance(value, float):
             raise TypeError('value should be a float if changing the opening height')
-        elif param == 'type' and not isinstance(value, int):
+        elif param in ['type'] and not isinstance(value, int):
             raise TypeError('value should be a int if changing the opening type')
         elif param == 'type' and str(value) not in self.airflow_path_types.df['id'].unique():
             raise ValueError(f'only opening types {self.airflow_path_types.df["id"].unique()} are available. Create new types directly in CONTAM and re-initialise.')
@@ -234,6 +235,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         # relating the param terms used to the df column names
         search_on = {'type': ['e#', str(value)],
                      'opening_height': ['relHt', f'{value:0.3f}'],
+                     'multiplier': ['mult', f'{value:0.3f}']
                      }
         self.flow_paths.df.loc[self.flow_paths.df['P#'] == str(path), search_on[param][0]] = search_on[param][1]
 
@@ -422,7 +424,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             return paths.merge(right=self.flow_rate_df, right_index=True, left_on='merge P#')[['P#', 'n#','m#','F0 (kg/s)','F1 (kg/s)']]
 
     def choose_flow_rates(self, row, zone, into_zone=True):
-        """ used in self.ventialtion_matrix() 
+        """ used in self.ventialtion_matrix()
         given the flow paths and rates associated with the zone,
         get the correct flow rate / sign for the position in the vent matrix.
         Args:
@@ -469,13 +471,13 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         """
         # get all flow paths which are internal doors
         all_doors = self.get_all_flow_paths_of_type(search_type_term='oor')
-        external_doors = all_doors[(all_doors['n#'] =='-1') | (all_doors['m#'] =='-1')]
+        external_doors = all_doors[(all_doors['n#'] == '-1') | (all_doors['m#'] == '-1')]
         self.external_door_matrix_idx = np.where(np.isin(all_doors['P#'].values, external_doors['P#'].values))[0]
         print(f'Number of matrices to be generated: {2**len(all_doors)}')
         self.all_door_matrices = []
         for i in range(2**len(all_doors)):
             # if i % 4 == 0:
-                # print(f'Generating all matrices: {i/2**len(all_doors):0.1%}', end='\r')
+            print(f'Generating all matrices: {i/2**len(all_doors):0.1%}', end='\r')
             binary_ref = split(int_to_binary_ref(i,len(all_doors)))
             flow_path_types = [self.door_open if x == '1' else self.door_closed for x in binary_ref]
             for path, value in zip(all_doors['P#'].values, flow_path_types):
@@ -490,7 +492,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         NOTE: could create a log of vent matrices produced
         """
         mat_obj = ContamVentMatrixStorage(self)
-        fname = f'{mat_obj.date_init.strftime("%y%m%d_%H-%M")}_{self.project_name}.pickle'
+        fname = f'{mat_obj.date_init.strftime("%y%m%d_%H-%M-%S")}_{self.project_name}.pickle'
         with open(f'{self.contam_dir}vent_mats/{fname}', 'wb') as pickle_out:
             pickle.dump(mat_obj, pickle_out)
 
@@ -508,7 +510,7 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             exit()
         else:
             return all_window_heights.unique()[0]
-        
+
     def get_window_dimensions(self, which):
         """return the distance between the top and bottom of the window
         NOTE: This is assumed to be the same for all windows
@@ -526,7 +528,14 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
             exit()
         else:
             return float(extents[0].unique()[0])
-    
+
+    def get_window_multiplier(self):
+        windows = self.get_all_flow_paths_of_type(search_type_term='indow')
+        if len(windows['mult'].unique()) > 1:
+            raise ValueError('There should be the same number of windows in each classroom')
+        else:
+            return float(windows['mult'].unique()[0])
+
     def set_big_vent_matrix_idx(self, idx):
         """Index of the current ventilation matrix in the simulation
 
@@ -540,30 +549,34 @@ Wind direction : {self.environment_conditions.df["Wd"].values[0]} deg.
         """get all ventilation matrices for a particular set of environmental conditions.
         If they don't exist, create them and save.
         """
-        window_height = self.get_window_height()
-        Ta, _, Ws, Wd = self.environment_conditions.df.iloc[0,:4].values
+        Ta, _, Ws, Wd = self.environment_conditions.df.iloc[0, :4].values
         corridor_temp = self.get_zone_temp_of_room_type('corridor')
         classroom_temp = self.get_zone_temp_of_room_type('classroom')
-        files = os.listdir(f'{self.contam_dir}/vent_mats/')   
+        files = os.listdir(f'{self.contam_dir}/vent_mats/')
         match = False
         for file in files:
             with open(f'{self.contam_dir}/vent_mats/{file}', 'rb') as pickle_in:
-                obj = pickle.load(pickle_in)
-            
-            if (obj.contam_model_name == self.project_name and obj.window_height== window_height and 
-                obj.ambient_temp == Ta and obj.wind_speed == Ws and obj.wind_direction == Wd and 
-                obj.corridor_temp == corridor_temp and obj.classroom_temp == classroom_temp):
-                self.all_door_matrices = obj.matrices
-                self.external_door_matrix_idx = obj.external_door_matrix_idx
+                vent_mat = pickle.load(pickle_in)
+            vent_mat.set_window_multiplier()
+            if (vent_mat.contam_model_name == self.project_name and
+                vent_mat.window_height == self.get_window_height() and
+                vent_mat.ambient_temp == Ta and
+                vent_mat.wind_speed == Ws and
+                vent_mat.wind_direction == Wd and
+                vent_mat.corridor_temp == corridor_temp
+                and vent_mat.classroom_temp == classroom_temp and
+                vent_mat.window_multiplier == self.get_window_multiplier()):
+
+                self.all_door_matrices = vent_mat.matrices
+                self.external_door_matrix_idx = vent_mat.external_door_matrix_idx
                 match = True
         if not match:
             print(f'''File for project {self.project_name}, ambient temp: {Ta}, windspeed: {Ws},wind direction: {Wd},
                   corridor temp {corridor_temp}, classroom temp {classroom_temp}''')
             print('Not Found......Generating Now.')
-
             self.generate_all_ventilation_matrices_for_all_door_open_close_combination()
 
-    
+
     @property
     def door_open(self):
         """The is the path type id in the .prj file for the door being open

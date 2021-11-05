@@ -59,7 +59,7 @@ def get_flow_rates_df(args):
 
 if __name__ == '__main__':
 
-    SAVE = True
+    SAVE = False
     PARALLEL = True
     CROSS_TRANSMISSION_ONLY = True
     REMOVE_SCALING = False
@@ -82,6 +82,8 @@ if __name__ == '__main__':
     ax5 = fig4.add_axes([0.625, 0.575, 0.35, 0.35])
 
     RUNS_TO_PLOT = [
+        'door_027_0deg_q5_wmul_1', 'door_028_0deg_q5_wmul_05',
+        'door_029_0deg_q5_wmul_1', 'door_030_0deg_q5_wmul_05',
         'door_012_0deg_q10', 'door_011_0deg_q5', 'door_013_0deg_q25',
         'door_014_90deg_q5', 'door_015_90deg_q10', 'door_016_90deg_q25',
         'door_023_4_rooms_0deg_q5', 'door_024_4_rooms_90deg_q5',
@@ -142,6 +144,8 @@ if __name__ == '__main__':
         def grouping_func(group):
             if group.name == 'contam_model_name':
                 return group.value_counts().index[0]
+            # elif group.name in ['risk']:
+                # return group.quantile(0.9)
             elif group.name not in ['Q_std', 'Q_std_ex']:
                 return group.mean()
             else:
